@@ -116,7 +116,7 @@ export function Assumptions() {
           <li><strong>Harvest</strong> at the close of the growing season: yields multiplied by a random factor and tithe deducted.</li>
           <li><strong>Autumn cull</strong> of old cattle and surplus calves into preserved meat.</li>
           <li><strong>Burn fuel</strong> for the household. If short, caloric needs rise.</li>
-          <li><strong>Eat dairy and meat</strong> first; then ale (up to 20 % of need); then wheat; then barley; then oats; then emergency sheep.</li>
+          <li><strong>Eat in strict priority:</strong> (1) all dairy (no cap); (2) preserved meat up to 15 % of monthly need; (3) barley ale up to 20 % of monthly need; (4) wheat bread; (5) remaining barley; (6) oat gruel; (7) remaining meat stockpile (uncapped); (8) emergency sheep slaughter — <em>winter months only</em>.</li>
           <li><strong>Feed livestock</strong> in winter — hay first, then oats. Shortfall kills beasts.</li>
           <li><strong>Spoilage</strong> takes its share of all stores.</li>
           <li><strong>Record</strong> the month, advance the clock.</li>

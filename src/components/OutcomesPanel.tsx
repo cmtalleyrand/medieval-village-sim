@@ -74,34 +74,34 @@ export function OutcomesPanel({ results, params, isSimulating }: Props) {
       <Card>
         <CardHeader
           title="Tides of Fortune"
-          subtitle={`Annual probability across ${100 * 5} simulated years (100 runs × 5 years)`}
+          subtitle={`Per-cycle probability across 500 simulated cycles (100 runs × 5 cycles each)`}
           icon={<AlertTriangle className="w-5 h-5" />}
         />
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
           <RiskMeter
             label="Famine"
             value={results.humanShortageObj * 100}
-            tooltip="Annual probability: years with any caloric deficit divided by total simulated years."
+            tooltip="Fraction of simulated cycles in which any caloric deficit was recorded."
           />
           <RiskMeter
             label="Severe Famine"
             value={results.severeShortageObj * 100}
-            tooltip="Share of years with deficits exceeding 20% of one planning month of demand (annual demand ÷ 12)."
+            tooltip="Share of cycles with deficits exceeding 20 % of one planning-month of demand (annual demand ÷ 12)."
           />
           <RiskMeter
             label="Beast Loss"
             value={results.animalDeathObj * 100}
-            tooltip="Annual probability: years in which livestock die from feed stress or emergency culling."
+            tooltip="Fraction of cycles in which livestock die from feed stress or emergency culling."
           />
           <RiskMeter
             label="Cold Hearth"
             value={results.fuelShortageObj * 100}
-            tooltip="Annual probability: years with any fuel shortage that triggers calorie-need penalties."
+            tooltip="Fraction of cycles with any fuel shortage that triggers calorie-need penalties."
           />
           <RiskMeter
             label="Bare Backs"
             value={results.clothingShortageObj * 100}
-            tooltip="Annual probability: years in which wool shorn (after tithe) falls short of the village's clothing need. Set clothing need per person in the Steward's Ledger."
+            tooltip="Fraction of cycles in which wool shorn (after tithe) falls short of the village's clothing need. Set clothing need per person in the Steward's Ledger."
           />
         </div>
       </Card>
@@ -109,7 +109,7 @@ export function OutcomesPanel({ results, params, isSimulating }: Props) {
       {/* DIET — annual caloric attribution */}
       <Card>
         <CardHeader
-          title="Annual Bread Basket"
+          title="The Bread Basket"
           subtitle="Where each calorie of the village diet comes from"
           icon={<Wheat className="w-5 h-5" />}
           right={
@@ -246,7 +246,7 @@ function synthesizeVerdict(
   ];
   const topRisk = riskFactors.reduce((a, b) => (b.value > a.value ? b : a));
   const driver = topRisk.value >= 5
-    ? `${topRisk.name.charAt(0).toUpperCase() + topRisk.name.slice(1)} is the leading threat at ${(topRisk.name === 'severe famine' ? severe : topRisk.value).toFixed(0)}% annual probability.`
+    ? `${topRisk.name.charAt(0).toUpperCase() + topRisk.name.slice(1)} is the leading threat at ${(topRisk.name === 'severe famine' ? severe : topRisk.value).toFixed(0)}% per-cycle probability.`
     : null;
 
   let headline = '';

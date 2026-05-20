@@ -121,16 +121,37 @@ function getDairyMonthsEquivalent(winterMonths: number) {
   return (MONTHS_PER_YEAR - winterMonths) + (winterMonths * WINTER_DAIRY_OUTPUT_FACTOR);
 }
 
-export function randomizeYield(base: number, variabilityPct: number) {
-  // Simple Box-Muller transform for normal distribution
+function boxMuller(): number {
   let u = 0, v = 0;
   while (u === 0) u = Math.random();
   while (v === 0) v = Math.random();
-  let num = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-  
-  const stdDev = base * (variabilityPct / 100);
-  let res = base + num * stdDev;
-  return Math.max(0, res); // No negative yields
+  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+
+// Fraction of annual yield variance explained by the shared climate shock.
+// Cross-crop correlation = product of two crops' sensitivities
+// (wheat–barley ≈ 0.56, wheat–oats ≈ 0.48, barley–oats ≈ 0.42).
+const WHEAT_CLIMATE_SENSITIVITY  = 0.8;
+const BARLEY_CLIMATE_SENSITIVITY = 0.7;
+const OATS_CLIMATE_SENSITIVITY   = 0.6;
+
+// Log-normal yield with a shared climate component. Mean-preserving: E[result] == base.
+export function randomizeCorrelatedYield(
+  base: number,
+  variabilityPct: number,
+  sharedShock: number,
+  climateSensitivity: number
+): number {
+  const rho = climateSensitivity;
+  const combinedShock = rho * sharedShock + Math.sqrt(1 - rho * rho) * boxMuller();
+  const sigma = variabilityPct / 100;
+  return base * Math.exp(sigma * combinedShock - (sigma * sigma) / 2);
+}
+
+// Independent log-normal yield (hay). Strictly non-negative, mean-preserving.
+export function randomizeYield(base: number, variabilityPct: number): number {
+  const sigma = variabilityPct / 100;
+  return base * Math.exp(sigma * boxMuller() - (sigma * sigma) / 2);
 }
 
 export function runSimulation(params: SimParams, iterations = 100): SimResult {
@@ -223,10 +244,11 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
       let hadFuelShortage = false;
       let hadClothingShortage = false;
 
-      // Annually randomize yields (fuel gathering is weather-dependent like crops)
-      const wYield = randomizeYield(params.yields.wheat, params.yieldVariability);
-      const bYield = randomizeYield(params.yields.barley, params.yieldVariability);
-      const oYield = randomizeYield(params.yields.oats, params.yieldVariability);
+      // Shared climate shock drives correlated grain yields; hay varies independently.
+      const climateShock = boxMuller();
+      const wYield = randomizeCorrelatedYield(params.yields.wheat, params.yieldVariability, climateShock, WHEAT_CLIMATE_SENSITIVITY);
+      const bYield = randomizeCorrelatedYield(params.yields.barley, params.yieldVariability, climateShock, BARLEY_CLIMATE_SENSITIVITY);
+      const oYield = randomizeCorrelatedYield(params.yields.oats, params.yieldVariability, climateShock, OATS_CLIMATE_SENSITIVITY);
       const hYield = randomizeYield(params.yields.hay, params.yieldVariability);
       const wAcres = wAcresConst;
       const bAcres = bAcresConst;
@@ -576,9 +598,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
           
           if (shortage > 0) {
               const cattleDying = Math.min(herd.length, Math.ceil(shortage / params.feedNeedsWinter.cowOats));
-              for(let k=0; k<cattleDying; k++) {
-                  if (herd.length > 0) herd.pop(); // Randomly kill a cattle
-              }
+              herd.sort((a, b) => b.ageMonths - a.ageMonths); // Oldest first — least remaining productive value
+              herd.splice(0, cattleDying);
           }
           // Sheep are not culled here: this branch represents oat shortage for working cattle.
         }
@@ -745,7 +766,9 @@ export function planVillageResources(params: SimParams, mode: PlannerMode = "min
   const hayFeedPerAcre = Math.max(0.000001, params.yields.hay * (1 - params.haySpoilageRate / 100));
   const fuelPerForestAcre = Math.max(0.000001, params.fuelYieldPerAcre * (params.growingMonths / 12));
   const kcalNeed = getAnnualKcalRequirement(params) * riskFactor;
-  const fuelNeed = params.households * (params.fuelNeedsSummer * params.growingMonths + params.fuelNeedsWinter * params.winterMonths) * riskFactor;
+  // Summer fuel is gathered informally (gleaning, hedge scraps, dung) at no woodland cost.
+  // Only winter fuel requires the managed woodland stock.
+  const fuelNeed = params.households * params.fuelNeedsWinter * params.winterMonths * riskFactor;
   const sheepNeed = Math.ceil((params.households * (params.peoplePerHH.male + params.peoplePerHH.female + params.peoplePerHH.child) * params.clothingNeedWoolLbs * riskFactor) / Math.max(0.000001, params.woolPerSheep));
   const oxen = Math.max(0, Math.ceil(params.households * params.animalsPerHH.oxen));
   const cows = Math.max(0, Math.ceil(oxen / 2));
