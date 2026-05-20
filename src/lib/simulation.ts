@@ -60,6 +60,7 @@ export interface MonthHistory {
   cattleCount: number;
   wool: number;
   woolStocks: number;
+  clothStocks: number;
   meatStock: number;
   deficit: number;
 }
@@ -173,9 +174,18 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   const initHayStocks    = 0;
   // Fuel: gathered continuously during the growing season, so no bridge stock needed.
   // Wool: carry-over from the previous year's shearing (half annual village need).
-  const totalPeople = params.households * (params.peoplePerHH.male + params.peoplePerHH.female + params.peoplePerHH.child);
-  const monthlyClothingWool = totalPeople * params.clothingNeedWoolLbs / 12;
+  const householdPeople = params.peoplePerHH.male + params.peoplePerHH.female + params.peoplePerHH.child;
+  const totalPeople = params.households * householdPeople;
+  // Women spin raw wool into cloth: each woman meets 1.5× her household's annual clothing need
+  const monthlyWoolToCloth = params.households * params.peoplePerHH.female *
+    (householdPeople * params.clothingNeedWoolLbs * 1.5 / 12);
+  // Consumption is weighted: double in winter, so annual total still = totalPeople * clothingNeedWoolLbs
+  const clothingBaseRate = totalPeople * params.clothingNeedWoolLbs /
+    (params.growingMonths + 2 * params.winterMonths);
   const initWoolStocks = totalPeople * params.clothingNeedWoolLbs * 0.5;
+  const initClothStocks = totalPeople * params.clothingNeedWoolLbs * 0.5;
+  // Woodland fuel: deterministic end-of-season harvest scaled for season length; no summer consumption
+  const woodlandFuelYield = params.woodlandAcres * params.fuelYieldPerAcre * params.growingMonths / 12;
 
   for (let i = 0; i < iterations; i++) {
     let wheatStocks = initWheatStocks;
@@ -186,6 +196,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
     let meatStocks = 0;
     let fuelStocks = 0;
     let woolStocks = initWoolStocks;
+    let clothStocks = initClothStocks;
 
     let herd: Cattle[] = [];
     herd.push({ type: 'bull', ageMonths: 48 });
@@ -213,9 +224,6 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
       const bYield = randomizeYield(params.yields.barley, params.yieldVariability);
       const oYield = randomizeYield(params.yields.oats, params.yieldVariability);
       const hYield = randomizeYield(params.yields.hay, params.yieldVariability);
-      const annualFuelYield = randomizeYield(params.woodlandAcres * params.fuelYieldPerAcre, params.yieldVariability);
-      const monthlyFuelGathering = annualFuelYield / params.growingMonths;
-
       const wAcres = wAcresConst;
       const bAcres = bAcresConst;
       const oAcres = oAcresConst;
@@ -224,6 +232,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
       // Simulate 12 months: Growing season then Winter
       for (let month = 1; month <= params.growingMonths + params.winterMonths; month++) {
         const isWinter = month > params.growingMonths;
+        const absoluteMonth = (year - 1) * (params.growingMonths + params.winterMonths) + month;
+        const calendarMonth = ((absoluteMonth - 1) % 12) + 1;
         const growingMonth = month <= params.growingMonths ? month : 0;
         const cycleMonth = growingMonth > 0 ? ((growingMonth - 1) % CROP_MATURATION_MONTHS) + 1 : 0;
         const isSeedPlanting = growingMonth > 0 && cycleMonth === 1;
@@ -238,8 +248,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         // Age the herd
         herd.forEach(c => c.ageMonths++);
 
-        // Spring reproduction (Month 1 is beginning of spring)
-        if (month === 1) {
+        // Spring reproduction: fires at calendar month 1 (January equivalent), growing season only
+        if (calendarMonth === 1 && !isWinter) {
             // Sheep reproduction
             currentSheep += Math.floor(currentSheep * 0.3); // 30% survival of lambing
 
@@ -255,23 +265,30 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             herd = herd.concat(newCalves);
         }
 
-        // Fuel gathered continuously throughout the growing season
-        if (!isWinter) {
-            fuelStocks += monthlyFuelGathering;
+        // Woodland fuel: harvested once at end of growing season for winter.
+        // Summer cooking fuel comes from other sources — free and untracked.
+        if (month === params.growingMonths) {
+            fuelStocks += woodlandFuelYield;
         }
 
-        // Sheep shearing (Early summer, Month 3): add to wool stock
-        if (month === 3) {
+        // Sheep shearing at calendar month 3 (March equivalent), growing season only
+        if (calendarMonth === 3 && !isWinter) {
             woolThisMonth = (currentSheep * params.woolPerSheep) * titheFactor;
             woolStocks += woolThisMonth;
             totalWoolProduced += woolThisMonth;
         }
 
-        // Clothing: consume wool from stock every month; shortage if stock runs dry
+        // Clothing: women spin raw wool into cloth; cloth consumed at double rate in winter
         {
-            const consumed = Math.min(woolStocks, monthlyClothingWool);
-            woolStocks -= consumed;
-            if (consumed < monthlyClothingWool) hadClothingShortage = true;
+            const spun = Math.min(woolStocks, monthlyWoolToCloth);
+            woolStocks -= spun;
+            clothStocks += spun;
+            const clothConsumed = isWinter ? 2 * clothingBaseRate : clothingBaseRate;
+            clothStocks -= clothConsumed;
+            if (clothStocks < 0) {
+                hadClothingShortage = true;
+                clothStocks = 0;
+            }
         }
 
         // Harvest logic: crops mature every 8 months. A long growing season yields multiple
@@ -348,26 +365,17 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
           meatStocks += (culledOld * params.production.cattleMeatAdult) + (culledCalves * params.production.cattleMeatCalf);
         }
 
-        // Fuel consumption & baseline setup
+        // Fuel: communal woodland stock heats the village in winter only; summer cooking is free.
         let currentMonthlyKcalReq = monthlyKcalReq;
-        let fuelNeeded = params.households * (isWinter ? params.fuelNeedsWinter : params.fuelNeedsSummer);
-        let actualFuelConsumed = 0;
-        let fuelShortagePct = 0;
-
-        if (fuelStocks >= fuelNeeded) {
-            fuelStocks -= fuelNeeded;
-            actualFuelConsumed = fuelNeeded;
-        } else {
-            actualFuelConsumed = fuelStocks;
-            fuelShortagePct = (fuelNeeded - fuelStocks) / fuelNeeded;
-            fuelStocks = 0;
-            hadFuelShortage = true;
-            
-            // Penalty to caloric needs!
-            if (isWinter) {
-                currentMonthlyKcalReq += monthlyKcalReq * (0.3 * fuelShortagePct); // Up to +30% calories required in winter if freezing
+        if (isWinter) {
+            const fuelNeeded = params.households * params.fuelNeedsWinter;
+            if (fuelStocks >= fuelNeeded) {
+                fuelStocks -= fuelNeeded;
             } else {
-                currentMonthlyKcalReq += monthlyKcalReq * (0.1 * fuelShortagePct); // Cooking/hygiene penalty in summer
+                const fuelShortagePct = fuelNeeded > 0 ? (fuelNeeded - fuelStocks) / fuelNeeded : 0;
+                fuelStocks = 0;
+                hadFuelShortage = true;
+                currentMonthlyKcalReq += monthlyKcalReq * (0.3 * fuelShortagePct);
             }
         }
 
@@ -594,6 +602,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             cattleCount: herd.length,
             wool: Math.round(woolThisMonth),
             woolStocks: Math.round(woolStocks),
+            clothStocks: Math.round(clothStocks),
             meatStock: Math.round(meatStocks),
             deficit: Math.round(kcalNeeded)
           });
