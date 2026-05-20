@@ -332,6 +332,10 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
                 <NumberField label="Tithe & mfg %" value={params.titheAndManufacturePct} onChange={v => setField('titheAndManufacturePct', v)} onCommit={commitParams} />
                 <NumberField step={0.1} label="Wool lbs/sheep/yr" tooltip="Raw wool shorn per sheep per year." value={params.woolPerSheep} onChange={v => setField('woolPerSheep', v)} onCommit={commitParams} />
                 <NumberField step={0.1} label="Clothing lbs/person" tooltip="Lbs of wool each person needs annually for basic garments (tunic, cloak, hose). Shortfall drives the Bare Backs risk." value={params.clothingNeedWoolLbs} onChange={v => setField('clothingNeedWoolLbs', v)} onCommit={commitParams} />
+                <NumberField step={0.1} label="Planner risk buffer %" tooltip="Extra annual demand margin used by the planner before solving minimum land or auto-allotment." value={params.plannerRiskBufferPct} onChange={v => setField('plannerRiskBufferPct', v)} onCommit={commitParams} />
+                <NumberField step={0.01} label="Bulls per cow" tooltip="Breeding ratio used by the planner when sizing the herd. Example: 0.0833 is 1 bull per 12 cows." value={params.bullsPerCow} onChange={v => setField('bullsPerCow', v)} onCommit={commitParams} />
+                <NumberField step={0.1} label="Pasture ac/sheep" tooltip="Planner pasture productivity assumption in acres required per sheep." value={params.pastureAcresPerSheep} onChange={v => setField('pastureAcresPerSheep', v)} onCommit={commitParams} />
+                <NumberField step={0.1} label="Pasture ac/cattle" tooltip="Planner pasture productivity assumption in acres required per ox, cow, or bull." value={params.pastureAcresPerCattle} onChange={v => setField('pastureAcresPerCattle', v)} onCommit={commitParams} />
               </div>
             </Subsection>
 

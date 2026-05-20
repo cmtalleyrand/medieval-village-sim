@@ -28,6 +28,10 @@ export interface SimParams {
   fuelYieldPerAcre: number;
   fuelNeedsSummer: number;
   fuelNeedsWinter: number;
+  plannerRiskBufferPct: number;
+  bullsPerCow: number;
+  pastureAcresPerSheep: number;
+  pastureAcresPerCattle: number;
   
   peoplePerHH: { male: number, female: number, child: number };
   kcalPerDay: { male: number, female: number, child: number };
@@ -718,7 +722,7 @@ interface PlannerReport {
 }
 
 export function planVillageResources(params: SimParams, mode: PlannerMode = "min-total-land"): PlannerReport {
-  const riskFactor = 1.05;
+  const riskFactor = 1 + (params.plannerRiskBufferPct / 100);
   const activeRate = 1 - params.fallowPct / 100;
   const titheFactor = (100 - params.titheAndManufacturePct) / 100;
   const deratedYield = (y: number) => Math.max(0.000001, y * titheFactor * (1 - params.spoilageRate / 100));
@@ -732,7 +736,7 @@ export function planVillageResources(params: SimParams, mode: PlannerMode = "min
   const sheepNeed = Math.ceil((params.households * (params.peoplePerHH.male + params.peoplePerHH.female + params.peoplePerHH.child) * params.clothingNeedWoolLbs * riskFactor) / Math.max(0.000001, params.woolPerSheep));
   const oxen = Math.max(0, Math.ceil(params.households * params.animalsPerHH.oxen));
   const cows = Math.max(0, Math.ceil(oxen / 2));
-  const bulls = Math.max(1, Math.ceil(cows / 12));
+  const bulls = Math.max(1, Math.ceil(cows * params.bullsPerCow));
   const sheep = sheepNeed;
   const dairyMonthsEquivalent = getDairyMonthsEquivalent(params.winterMonths);
   const animalKcal = (cows * params.production.cowDairyKcal + (sheep * 0.5) * params.production.sheepDairyKcal) * dairyMonthsEquivalent + (sheep * 0.1 * params.production.sheepMeatKcal);
@@ -752,7 +756,7 @@ export function planVillageResources(params: SimParams, mode: PlannerMode = "min
   const activeFarmlandAcres = wheatAcres + barleyAcres + oatAcres + hayAcres;
   const farmlandAcres = activeFarmlandAcres / Math.max(0.000001, activeRate);
   const forestAcres = fuelNeed / fuelPerForestAcre;
-  const pastureAcres = sheep * 0.5 + (oxen + cows + bulls) * 1.0;
+  const pastureAcres = (sheep * params.pastureAcresPerSheep) + ((oxen + cows + bulls) * params.pastureAcresPerCattle);
   const totalLandAcres = farmlandAcres + forestAcres + pastureAcres;
   const fixedTotal = params.totalAcres;
   const barleyKcal = barleyAcres * barleyKcalPerAcre;
@@ -768,7 +772,7 @@ export function planVillageResources(params: SimParams, mode: PlannerMode = "min
     fuel: forestAcres * fuelPerForestAcre - fuelNeed,
     tractionOxen: oxen - params.households * params.animalsPerHH.oxen,
     cowsToOxen: cows - oxen / 2,
-    bullsToCows: bulls - cows / 12,
+    bullsToCows: bulls - (cows * params.bullsPerCow),
     sheepClothing: sheep * params.woolPerSheep - params.households * (params.peoplePerHH.male + params.peoplePerHH.female + params.peoplePerHH.child) * params.clothingNeedWoolLbs * riskFactor,
     totalLand: mode === "fixed-total-land" ? fixedTotal - totalLandAcres : 0,
   };
