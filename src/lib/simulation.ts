@@ -123,14 +123,15 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
 
   const activeAcres = params.totalAcres * (1 - params.fallowPct / 100);
   const YEARS_PER_ITERATION = 5;
-  const HARVEST_CYCLE = params.growingMonths; // Harvest occurs at the end of the growing season
+  const CROP_MATURATION_MONTHS = 8;
+  const firstHarvestMonth = Math.max(1, Math.min(params.growingMonths, CROP_MATURATION_MONTHS));
   
   for (let i = 0; i < iterations; i++) {
-    // Start with a healthy initial stock to survive until first harvest and plant seeds
-    let wheatStocks = (monthlyKcalReq * 8 / params.cropStats.wheat.kcalPerBu) + (activeAcres * (params.landSplit.wheat / 100) * params.cropStats.wheat.seedRate);
-    let barleyStocks = (monthlyKcalReq * 4 / params.cropStats.barley.kcalPerBu) + (activeAcres * (params.landSplit.barley / 100) * params.cropStats.barley.seedRate);
-    let oatStocks = (totalOxen * 30) + (totalCows * 30) + (activeAcres * (params.landSplit.oats / 100) * params.cropStats.oats.seedRate);
-    let hayStocks = (totalOxen * 10) + (totalCows * 10) + (initialSheep * 4);
+    // Start with enough stock to bridge to first harvest, including seed reserves for each crop cycle
+    let wheatStocks = (monthlyKcalReq * firstHarvestMonth / params.cropStats.wheat.kcalPerBu) + (activeAcres * (params.landSplit.wheat / 100) * params.cropStats.wheat.seedRate);
+    let barleyStocks = (monthlyKcalReq * firstHarvestMonth * 0.5 / params.cropStats.barley.kcalPerBu) + (activeAcres * (params.landSplit.barley / 100) * params.cropStats.barley.seedRate);
+    let oatStocks = (totalOxen * firstHarvestMonth) + (totalCows * firstHarvestMonth) + (activeAcres * (params.landSplit.oats / 100) * params.cropStats.oats.seedRate);
+    let hayStocks = (totalOxen * 0.5 * firstHarvestMonth) + (totalCows * 0.5 * firstHarvestMonth) + (initialSheep * 0.2 * firstHarvestMonth);
     let currentSheep = initialSheep;
     let meatStocks = 0;
     let fuelStocks = params.woodlandAcres * params.fuelYieldPerAcre;
@@ -169,7 +170,9 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
       // Simulate 12 months: Growing season then Winter
       for (let month = 1; month <= params.growingMonths + params.winterMonths; month++) {
         const isWinter = month > params.growingMonths;
-        const isSeedPlanting = month === 1; // Month 1 of growing
+        const growingMonth = month <= params.growingMonths ? month : 0;
+        const cycleMonth = growingMonth > 0 ? ((growingMonth - 1) % CROP_MATURATION_MONTHS) + 1 : 0;
+        const isSeedPlanting = growingMonth > 0 && cycleMonth === 1;
         let winterMonthIndex = isWinter ? month - params.growingMonths : 0;
 
         // Flow tracking variables
@@ -205,17 +208,16 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             totalWoolProduced += woolThisMonth;
         }
 
-        // Harvest logic: Happens at end of HARVEST_CYCLE
-        if (month === HARVEST_CYCLE) {
-            // Deduct non-agricultural manufactures/tithe
+        // Harvest logic: crops mature every ~8 months; long growing seasons can yield multiple harvests
+        if (growingMonth > 0 && (cycleMonth === CROP_MATURATION_MONTHS || growingMonth === params.growingMonths)) {
+            const cycleProgress = cycleMonth === CROP_MATURATION_MONTHS ? 1 : cycleMonth / CROP_MATURATION_MONTHS;
             const titheFactor = (100 - params.titheAndManufacturePct) / 100;
 
-            // Add to stocks
-            wheatStocks += (wAcres * wYield) * titheFactor;
-            barleyStocks += (bAcres * bYield) * titheFactor;
-            oatStocks += (oAcres * oYield) * titheFactor;
-            hayStocks += (hAcres * hYield); // Hay usually not tithed in the same way, but let's keep it simple
-            fuelStocks += params.woodlandAcres * randomizeYield(params.fuelYieldPerAcre, params.yieldVariability);
+            wheatStocks += (wAcres * wYield * cycleProgress) * titheFactor;
+            barleyStocks += (bAcres * bYield * cycleProgress) * titheFactor;
+            oatStocks += (oAcres * oYield * cycleProgress) * titheFactor;
+            hayStocks += (hAcres * hYield * cycleProgress);
+            fuelStocks += params.woodlandAcres * randomizeYield(params.fuelYieldPerAcre, params.yieldVariability) * cycleProgress;
         }
         
         if (isSeedPlanting) {
