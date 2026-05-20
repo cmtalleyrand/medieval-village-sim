@@ -671,78 +671,15 @@ export function runDeterministicRiskSmokeCheck(): { annualFamineProbability: num
 }
 
 export function autoAllocateLand(params: SimParams): SimParams["landSplit"] {
-  const activeAcres = params.totalAcres * (1 - params.fallowPct / 100);
-  const yearlyKcalReq = getAnnualKcalRequirement(params);
-
-  const titheFactor = (100 - params.titheAndManufacturePct) / 100
-
-  const totalOxen = params.households * params.animalsPerHH.oxen;
-  const totalCows = params.households * params.animalsPerHH.cows;
-  const initialSheep = params.households * params.animalsPerHH.sheep;
-
-  // Animals Feed needed for winter, accounting for sub-adults and bulls
-  const cattleMultiplier = 1.3; // Account for calves and subadults
-  const oxenFeedUnits = (totalOxen * cattleMultiplier) + 2; // +2 for bulls
-  const cowFeedUnits = totalCows * cattleMultiplier;
-  
-  const oatsNeeded = (oxenFeedUnits * params.feedNeedsWinter.oxenOats + cowFeedUnits * params.feedNeedsWinter.cowOats) * params.winterMonths;
-  let sheepHayFactor = 0; // Months sheep need hay/half-hay
-  for(let i=1; i<=params.winterMonths; i++) {
-    if (i > 3 && i <= 6) sheepHayFactor += 0.5;
-    else if (i > 6) sheepHayFactor += 1;
+  const report = planVillageResources(params, "fixed-total-land");
+  const sum = report.solution.activeFarmlandAcres;
+  const wheatAcres = report.solution.wheatAcres;
+  const barleyAcres = report.solution.barleyAcres;
+  const oatAcres = report.solution.oatAcres;
+  const hayAcres = report.solution.hayAcres;
+  if (sum <= 0) {
+    return { wheat: 0, barley: 0, oats: 0, hay: 0 };
   }
-  const hayNeeded = (oxenFeedUnits * params.feedNeedsWinter.oxenHay + cowFeedUnits * params.feedNeedsWinter.cowHay) * params.winterMonths + (initialSheep * params.feedNeedsWinter.sheepHay * sheepHayFactor);
-
-  // Human Kcal provided by animals natively
-  const dairyMonthsEquivalent = getDairyMonthsEquivalent(params.winterMonths);
-  const animalKcalPerYear = (totalCows * params.production.cowDairyKcal + (initialSheep * 0.5) * params.production.sheepDairyKcal) * dairyMonthsEquivalent + (initialSheep * 0.1 * params.production.sheepMeatKcal);
-
-  // Kcal needed from crops
-  const cropKcalNeeded = Math.max(0, yearlyKcalReq - animalKcalPerYear);
-
-  // Apply safety buffer (e.g. 1.25x for variability and spoilage)
-  const targetOats = oatsNeeded * 1.35;
-  const targetHay = hayNeeded * 1.35;
-  const targetCropKcal = cropKcalNeeded * 1.45;
-
-  const netOatsYield = Math.max(0.1, params.yields.oats * titheFactor - params.cropStats.oats.seedRate);
-  const netHayYield = Math.max(0.1, params.yields.hay);
-  const netWheatYieldBu = Math.max(0.1, params.yields.wheat * titheFactor - params.cropStats.wheat.seedRate);
-  const netBarleyYieldBu = Math.max(0.1, params.yields.barley * titheFactor - params.cropStats.barley.seedRate);
-  
-  const oatAcres = targetOats / netOatsYield;
-  const hayAcres = targetHay / netHayYield;
-  
-  let remainderAcres = activeAcres - oatAcres - hayAcres;
-  
-  let wheatAcres = 0;
-  let barleyAcres = 0;
-  
-  if (remainderAcres <= 0) {
-     const scale = activeAcres / (oatAcres + hayAcres);
-     return {
-        wheat: 0,
-        barley: 0,
-        oats: (oatAcres * scale / activeAcres) * 100,
-        hay: (hayAcres * scale / activeAcres) * 100
-     };
-  }
-  
-  const wheatKcalPerAcre = netWheatYieldBu * params.cropStats.wheat.kcalPerBu;
-  const barleyKcalPerAcre = netBarleyYieldBu * params.cropStats.barley.kcalPerBu;
-
-  // Let's split remaining acres to meet crop Kcal, bias towards wheat if possible
-  const totalWheatNeeded = targetCropKcal / wheatKcalPerAcre;
-  
-  if (totalWheatNeeded > remainderAcres) {
-    wheatAcres = remainderAcres * 0.85; // Mostly wheat if starving
-    barleyAcres = remainderAcres * 0.15;
-  } else {
-    wheatAcres = totalWheatNeeded; // Meet wheat Kcal target
-    barleyAcres = remainderAcres - wheatAcres; // Rest in barley for ale
-  }
-  
-  const sum = wheatAcres + barleyAcres + oatAcres + hayAcres;
   return {
     wheat: (wheatAcres / sum) * 100,
     barley: (barleyAcres / sum) * 100,
@@ -752,49 +689,95 @@ export function autoAllocateLand(params: SimParams): SimParams["landSplit"] {
 }
 
 export function solveMinimumAcres(params: SimParams): number {
-  const yearlyKcalReq = getAnnualKcalRequirement(params);
-
-  const titheFactor = (100 - params.titheAndManufacturePct) / 100
-
-  const totalOxen = params.households * params.animalsPerHH.oxen;
-  const totalCows = params.households * params.animalsPerHH.cows;
-  const initialSheep = params.households * params.animalsPerHH.sheep;
-
-  const cattleMultiplier = 1.3;
-  const oxenFeedUnits = (totalOxen * cattleMultiplier) + 2;
-  const cowFeedUnits = totalCows * cattleMultiplier;
-
-  const oatsNeeded = (oxenFeedUnits * params.feedNeedsWinter.oxenOats + cowFeedUnits * params.feedNeedsWinter.cowOats) * params.winterMonths;
-  let sheepHayFactor = 0;
-  for(let i=1; i<=params.winterMonths; i++) {
-    if (i > 3 && i <= 6) sheepHayFactor += 0.5;
-    else if (i > 6) sheepHayFactor += 1;
-  }
-  const hayNeeded = (oxenFeedUnits * params.feedNeedsWinter.oxenHay + cowFeedUnits * params.feedNeedsWinter.cowHay) * params.winterMonths + (initialSheep * params.feedNeedsWinter.sheepHay * sheepHayFactor);
-
-  const dairyMonthsEquivalent = getDairyMonthsEquivalent(params.winterMonths);
-  const animalKcalPerYear = (totalCows * params.production.cowDairyKcal + (initialSheep * 0.5) * params.production.sheepDairyKcal) * dairyMonthsEquivalent + (initialSheep * 0.1 * params.production.sheepMeatKcal);
-  const cropKcalNeeded = Math.max(0, yearlyKcalReq - animalKcalPerYear);
-
-  const targetOats = oatsNeeded * 1.35;
-  const targetHay = hayNeeded * 1.35;
-  const targetCropKcal = cropKcalNeeded * 1.45;
-
-  const netOatsYield = Math.max(0.1, params.yields.oats * titheFactor - params.cropStats.oats.seedRate);
-  const netHayYield = Math.max(0.1, params.yields.hay);
-  const netWheatYieldBu = Math.max(0.1, params.yields.wheat * titheFactor - params.cropStats.wheat.seedRate);
-  
-  const oatAcres = targetOats / netOatsYield;
-  const hayAcres = targetHay / netHayYield;
-  
-  const wheatKcalPerAcre = netWheatYieldBu * params.cropStats.wheat.kcalPerBu;
-  const totalWheatNeeded = targetCropKcal / wheatKcalPerAcre;
-  
-  // Total active acres (with a small 15% bump on food acres for barley/ale)
-  const activeAcres = oatAcres + hayAcres + totalWheatNeeded * 1.15;
-  
-  // Required total acres accounts for fallow land
-  const requiredTotalAcres = activeAcres / (1 - params.fallowPct / 100);
-  
+  const report = planVillageResources(params, "min-total-land");
+  const requiredTotalAcres = report.solution.totalLandAcres;
   return Math.ceil(requiredTotalAcres / 10) * 10;
+}
+
+type PlannerMode = "min-total-land" | "fixed-total-land";
+interface PlannerReport {
+  mode: PlannerMode;
+  feasible: boolean;
+  objectiveValue: number;
+  solution: {
+    totalLandAcres: number;
+    farmlandAcres: number;
+    activeFarmlandAcres: number;
+    pastureAcres: number;
+    forestAcres: number;
+    wheatAcres: number;
+    barleyAcres: number;
+    oatAcres: number;
+    hayAcres: number;
+    sheep: number;
+    oxen: number;
+    cows: number;
+    bulls: number;
+  };
+  slacks: Record<string, number>;
+}
+
+export function planVillageResources(params: SimParams, mode: PlannerMode = "min-total-land"): PlannerReport {
+  const riskFactor = 1.05;
+  const activeRate = 1 - params.fallowPct / 100;
+  const titheFactor = (100 - params.titheAndManufacturePct) / 100;
+  const deratedYield = (y: number) => Math.max(0.000001, y * titheFactor * (1 - params.spoilageRate / 100));
+  const wheatKcalPerAcre = deratedYield(params.yields.wheat) * params.cropStats.wheat.kcalPerBu;
+  const barleyKcalPerAcre = deratedYield(params.yields.barley) * params.cropStats.barley.kcalPerBu;
+  const oatsFeedPerAcre = deratedYield(params.yields.oats);
+  const hayFeedPerAcre = Math.max(0.000001, params.yields.hay * (1 - params.haySpoilageRate / 100));
+  const fuelPerForestAcre = Math.max(0.000001, params.fuelYieldPerAcre * (params.growingMonths / 12));
+  const kcalNeed = getAnnualKcalRequirement(params) * riskFactor;
+  const fuelNeed = params.households * (params.fuelNeedsSummer * params.growingMonths + params.fuelNeedsWinter * params.winterMonths) * riskFactor;
+  const sheepNeed = Math.ceil((params.households * (params.peoplePerHH.male + params.peoplePerHH.female + params.peoplePerHH.child) * params.clothingNeedWoolLbs * riskFactor) / Math.max(0.000001, params.woolPerSheep));
+  const oxen = Math.max(0, Math.ceil(params.households * params.animalsPerHH.oxen));
+  const cows = Math.max(0, Math.ceil(oxen / 2));
+  const bulls = Math.max(1, Math.ceil(cows / 12));
+  const sheep = sheepNeed;
+  const dairyMonthsEquivalent = getDairyMonthsEquivalent(params.winterMonths);
+  const animalKcal = (cows * params.production.cowDairyKcal + (sheep * 0.5) * params.production.sheepDairyKcal) * dairyMonthsEquivalent + (sheep * 0.1 * params.production.sheepMeatKcal);
+  const cropKcalNeed = Math.max(0, kcalNeed - animalKcal);
+  const oatsFeedNeed = ((oxen * params.feedNeedsWinter.oxenOats) + (cows * params.feedNeedsWinter.cowOats)) * params.winterMonths * riskFactor;
+  const hayFeedNeed = ((oxen * params.feedNeedsWinter.oxenHay) + (cows * params.feedNeedsWinter.cowHay) + (sheep * params.feedNeedsWinter.sheepHay)) * params.winterMonths * riskFactor;
+  const barleyShareTarget = 0.10;
+  const w = wheatKcalPerAcre;
+  const b = barleyKcalPerAcre;
+  const v = (1 - barleyShareTarget) / barleyShareTarget;
+  const minBarleyAcres = cropKcalNeed / (b + v * w);
+  const wheatAtMinBarley = (b * (1 - barleyShareTarget) * minBarleyAcres) / (barleyShareTarget * w);
+  const wheatAcres = Math.max(0, wheatAtMinBarley);
+  const barleyAcres = Math.max(0, minBarleyAcres);
+  const oatAcres = oatsFeedNeed / oatsFeedPerAcre;
+  const hayAcres = hayFeedNeed / hayFeedPerAcre;
+  const activeFarmlandAcres = wheatAcres + barleyAcres + oatAcres + hayAcres;
+  const farmlandAcres = activeFarmlandAcres / Math.max(0.000001, activeRate);
+  const forestAcres = fuelNeed / fuelPerForestAcre;
+  const pastureAcres = sheep * 0.5 + (oxen + cows + bulls) * 1.0;
+  const totalLandAcres = farmlandAcres + forestAcres + pastureAcres;
+  const fixedTotal = params.totalAcres;
+  const barleyKcal = barleyAcres * barleyKcalPerAcre;
+  const wheatKcal = wheatAcres * wheatKcalPerAcre;
+  const cropKcal = barleyKcal + wheatKcal;
+  const barleyShare = cropKcal > 0 ? barleyKcal / cropKcal : 0;
+  const slacks: Record<string, number> = {
+    calorie: cropKcal + animalKcal - kcalNeed,
+    barleyLower: barleyShare - 0.10,
+    barleyUpper: 0.20 - barleyShare,
+    oatsFeed: oatAcres * oatsFeedPerAcre - oatsFeedNeed,
+    hayFeed: hayAcres * hayFeedPerAcre - hayFeedNeed,
+    fuel: forestAcres * fuelPerForestAcre - fuelNeed,
+    tractionOxen: oxen - params.households * params.animalsPerHH.oxen,
+    cowsToOxen: cows - oxen / 2,
+    bullsToCows: bulls - cows / 12,
+    sheepClothing: sheep * params.woolPerSheep - params.households * (params.peoplePerHH.male + params.peoplePerHH.female + params.peoplePerHH.child) * params.clothingNeedWoolLbs * riskFactor,
+    totalLand: mode === "fixed-total-land" ? fixedTotal - totalLandAcres : 0,
+  };
+  const feasible = Object.values(slacks).every((s) => s >= -1e-6);
+  return {
+    mode,
+    feasible,
+    objectiveValue: mode === "fixed-total-land" ? slacks.totalLand : totalLandAcres,
+    solution: { totalLandAcres: mode === "fixed-total-land" ? fixedTotal : totalLandAcres, farmlandAcres, activeFarmlandAcres, pastureAcres, forestAcres, wheatAcres, barleyAcres, oatAcres, hayAcres, sheep, oxen, cows, bulls },
+    slacks,
+  };
 }
