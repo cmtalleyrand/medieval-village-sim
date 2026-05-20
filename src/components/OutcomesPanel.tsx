@@ -187,14 +187,6 @@ export function OutcomesPanel({ results, params, isSimulating }: Props) {
           <LedgerRow label="Sheep meat" value={`${Math.round(results.conversionAudit.physicalOutputs.meatLbs.sheep).toLocaleString()} lb`} />
         </div>
       </Card>
-      <details className="text-[0.72rem] text-[var(--color-ink-300)]">
-        <summary className="cursor-pointer select-none">Show energy-conversion audit (advanced)</summary>
-        <div className="mt-2 p-2 rounded-sm border border-[rgba(120,80,30,0.18)] bg-[rgba(255,250,230,0.45)] space-y-1 tabular-nums">
-          <div>Fuel gathered: {Math.round(results.conversionAudit.fuel.annualGathered.usableHeatKj).toLocaleString()} kJ usable heat</div>
-          <div>Fuel winter demand: {Math.round(results.conversionAudit.fuel.annualWinterDemand.usableHeatKj).toLocaleString()} kJ usable heat</div>
-          <div>Barley processing loss routed to feed: {Math.round(results.conversionAudit.foods.barley.energy.processingWasteAnimalKj).toLocaleString()} kJ</div>
-        </div>
-      </details>
     </div>
   );
 }

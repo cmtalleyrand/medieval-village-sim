@@ -104,7 +104,7 @@ export function Assumptions() {
           <FactRow term="Spoilage" def="Geometric decay in storage — 3 %/month for grain, 5 %/month for hay." />
           <FactRow term="Tithe & manufactures" def="Tithes (~10%) and non‑cloth manufactures (~5%) absorb a default 15 % of every grain and wool harvest." />
           <FactRow term="Monte Carlo variability" def="Yields randomise yearly via Box–Muller normal distribution with default σ = 15%. The simulation runs 100 independent five‑year lives." />
-          <FactRow term="Source-alignment notes" def="Pulses remain intentionally out of scope. Primary reporting uses physical units (bushels/tons/lbs/gallons/yards); energy-conversion audit is available behind an advanced disclosure. Straw option (not yet implemented): derive straw from cereal harvest (e.g., fixed tons-per-bushel factors by grain), apply higher spoilage and lower feed energy than hay, and consume straw after hay but before emergency oat substitution." />
+          <FactRow term="Source-alignment notes" def="Pulses remain intentionally out of scope. Primary reporting uses physical units (bushels/tons/lbs/gallons/yards). Straw option (not yet implemented): derive straw from cereal harvest (e.g., fixed tons-per-bushel factors by grain), apply higher spoilage and lower feed energy than hay, and consume straw after hay but before emergency oat substitution." />
         </ul>
       </Section>
 
