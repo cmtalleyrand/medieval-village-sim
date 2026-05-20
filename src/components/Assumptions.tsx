@@ -1,92 +1,154 @@
 import React from 'react';
+import { Wheat, Beef, Flame, Users, Sprout, ScrollText, BookOpen } from 'lucide-react';
+import { Card, CardHeader, Fleuron } from './ui';
 
 export function Assumptions() {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-8 max-w-5xl mx-auto space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold text-stone-900 mb-4 border-b pb-2">Methodology & Assumptions</h2>
-        <p className="text-stone-600 mb-4">
-          This simulation models a stylized northern European medieval village economy, blending historical estimates with simulation logic to model survival rates across varying winter and growing season lengths.
+    <div className="space-y-5">
+      <Card>
+        <div className="ornate-border">
+          <div className="text-center py-4">
+            <div className="text-[0.7rem] font-[var(--font-display)] uppercase tracking-[0.24em] text-[var(--color-crimson-500)] mb-1">
+              The Almanac
+            </div>
+            <h2 className="text-3xl font-[var(--font-blackletter)] text-[var(--color-ink-500)] mb-2">
+              Methodology &amp; Assumptions
+            </h2>
+            <p className="text-[var(--color-ink-300)] italic max-w-3xl mx-auto px-6 text-[0.95rem] leading-relaxed">
+              This planner blends historical estimate with stochastic simulation to model survival across uncertain
+              harvests, brittle winters and the slow drain of tithes. The default parameters reflect a stylised
+              northern‑European fiefdom around the cusp of the 14th century.
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          icon={<BookOpen className="w-5 h-5" />}
+          title="Historical Sources"
+          subtitle="The shoulders this simulation stands upon"
+        />
+        <ul className="space-y-3 text-[0.88rem] text-[var(--color-ink-400)]">
+          {[
+            { author: 'Bruce M. S. Campbell', work: 'English Seigniorial Agriculture, 1250–1450', note: 'Yield estimates, seed rates, three‑field rotation.' },
+            { author: 'Christopher Dyer', work: 'Standards of Living in the Later Middle Ages', note: 'Caloric requirements, ale consumption, dairy output.' },
+            { author: 'Gregory Clark', work: 'The Long March of History', note: 'Labour calories and harvest variation.' },
+            { author: 'John Munro', work: 'Medieval Woollens', note: 'Sheep fleece weights and cloth manufacture.' },
+            { author: 'Stephen Broadberry et al.', work: 'British Economic Growth, 1270–1870', note: 'Tithe and tax burdens (~10–20 % of surplus).' },
+          ].map((s, i) => (
+            <li key={i} className="flex gap-3 dropcap-row">
+              <span className="font-[var(--font-display)] text-[var(--color-gold-700)] tabular-nums text-sm w-6 pt-0.5">{String.fromCharCode(8544 + i)}</span>
+              <div>
+                <span className="font-semibold text-[var(--color-ink-500)]">{s.author}</span>
+                <span className="italic text-[var(--color-ink-400)]"> — {s.work}.</span>
+                <span className="text-[var(--color-ink-300)] text-[0.82rem]"> {s.note}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </Card>
+
+      <Section icon={<Users className="w-5 h-5" />} title="I · The Souls" tone="green">
+        <p className="dropcap">
+          <strong>F</strong>our and a half souls per hearth — a man and a woman with two and a half children on average — burning
+          their flour at 2,500, 2,000 and 1,600 kcal per day respectively. Across the default twenty households,
+          this is some <span className="font-mono text-[var(--color-ink-500)]">5.4 million kcal each month</span>, the sum
+          of which the granary must answer. Hunger is calculated monthly; persistent deficit is recorded as <em>severe</em>
+          when it exceeds a fifth of caloric need.
         </p>
-      </div>
+      </Section>
 
-      <div className="space-y-8">
-        <section>
-          <h3 className="text-lg font-bold text-stone-800 mb-3 border-l-4 border-stone-300 pl-3">Historical Sources & Frameworks</h3>
-          <ul className="list-decimal pl-5 space-y-3 text-stone-600 text-sm">
-            <li><strong>Bruce M. S. Campbell</strong>, <em>English Seigniorial Agriculture, 1250-1450</em><br/>Yield estimates, seeding rates, and land use. Default yields reflect typical 13th/14th-century averages before the Black Death.</li>
-            <li><strong>Christopher Dyer</strong>, <em>Standards of Living in the Later Middle Ages</em><br/>Caloric requirements, dietary composition, brewing practices, consumption of ale, and dairy output.</li>
-            <li><strong>Gregory Clark</strong>, <em>The Long March of History: Farm Wages, Population, and Economic Growth</em><br/>Labor calories and harvest variations.</li>
-            <li><strong>John Munro</strong>, <em>Medieval Woollens</em><br/>Estimates of medieval sheep fleece weights averaging 1.5 to 2.5 lbs per sheep and cloth manufacturing requirements.</li>
-            <li><strong>Stephen Broadberry et al.</strong>, <em>British Economic Growth, 1270–1870</em><br/>Estimates of non-agricultural output and tithe/tax burdens, typically absorbing 10-20% of agricultural surplus.</li>
-          </ul>
-        </section>
+      <Section icon={<Beef className="w-5 h-5" />} title="II · The Beasts of Burden" tone="amber">
+        <p>
+          Each household keeps roughly two oxen, two cows and four sheep — engines of the plough and the dairy pail.
+          In the growing months they walk to the commons, fallow and pasture; in the winter, every mouthful must come
+          from harvested hay and oats.
+        </p>
+        <ul className="mt-3 space-y-2 list-none">
+          <FactRow term="Cattle lifecycle" def="Cows calve at 3; productive at 4. Maximum age ~10 years. Old or surplus cattle are culled at autumn; calves beyond replacement are slaughtered for meat." />
+          <FactRow term="Winter feed" def="A grown ox demands 3 bushels of oats and ½ ton of hay each month. A cow, 2 bushels of oats and ½ ton of hay. Calves and yearlings, less." />
+          <FactRow term="Sheep cycle" def="Sheep forage on stubble for the first three winter months, then receive half hay rations, and finally full stall‑feeding in deep winter." />
+          <FactRow term="Feed shortfall" def="When the hay runs out, cattle must consume 10× equivalent in oats. When the oats run out — livestock perish." />
+        </ul>
+      </Section>
 
-        <section>
-          <h3 className="text-lg font-bold text-stone-800 mb-3 border-l-4 border-emerald-500 pl-3">1. Demographics & Caloric Needs</h3>
-          <ul className="list-disc pl-5 space-y-2 text-stone-600 text-sm">
-            <li><strong>Household Composition:</strong> Modeled at 4.5 individuals per household (1 Male, 1 Female, 2.5 Children).</li>
-            <li><strong>Human Caloric Burn:</strong> Men (2500 kcal/day), Women (2000 kcal/day), Children (1600 kcal/day average).</li>
-            <li><strong>Total Needs:</strong> ~9000 kcal/household/day. Across the default 20 households, this equals ~5.4 million kcal per month.</li>
-          </ul>
-        </section>
+      <Section icon={<Sprout className="w-5 h-5" />} title="III · Dairy, Meat & Wool" tone="amber">
+        <ul className="space-y-2 list-none">
+          <FactRow term="Dairy" def="A producing cow yields ~35,000 kcal/month in milk, butter and cheese in summer. Sheep ewes about 2,500 kcal/month. Winter milk drops by 65%." />
+          <FactRow term="Autumn cull" def="The autumn slaughter of old and surplus animals preserves hundreds of thousands of kcal as salted, smoked or potted meat — eaten through the winter at 15 %/mo spoilage." />
+          <FactRow term="Emergency cull" def="When all stores are exhausted, sheep are slaughtered live for 40,000 kcal each — a desperate last measure." />
+          <FactRow term="Wool" def="1.5 lbs per sheep per year, sheared at Whitsuntide. Roughly 3 lbs yields a yard of broadcloth." />
+        </ul>
+      </Section>
 
-        <section>
-          <h3 className="text-lg font-bold text-stone-800 mb-3 border-l-4 border-amber-500 pl-3">2. Animal Husbandry & Caloric Needs</h3>
-          <p className="text-sm text-stone-600 mb-3">
-             Animals are critical engines for plowing and fertilization, but they require massive caloric upkeep. During the growing season, they survive primarily on unenclosed commons, fallow fields, and pasture. In winter, they must be hand-fed from harvested stores.
-          </p>
-          <ul className="list-disc pl-5 space-y-2 text-stone-600 text-sm">
-            <li><strong>Herd/Flock Dynamics:</strong> The baseline holdings are ~2 oxen, ~2 cows, and ~4 sheep per household. The simulation maintains the population dynamically over multiple years.</li>
-            <li><strong>Cattle Lifecycle:</strong> Cattle live to roughly 10 years and are culled beforehand. They become half-productive in their fourth year (age 3) and fully productive by their fifth year (age 4). The village herd replaces itself through calving (cows &gt;3yrs). The village supports 2 bulls for reproduction.</li>
-            <li><strong>Cattle Culling (Winter):</strong> At the end of the work season, any cattle that have less than 6 months of working life left by the following spring (approx 9+ yr old) are culled for meat, as are any surplus calves born beyond the replacement needs of the herd.</li>
-            <li><strong>Winter Feed:</strong> Due to their massive size and caloric burn, oxen require the heaviest feeding: ~3 bushels of oats and 0.5 tons of hay per month during the winter. Cows require ~2 bushels of oats.</li>
-            <li><strong>Sheep & The Pasture Cycle:</strong> Sheep are hardy. For the first 3 months of winter, they survive by foraging on crop stubble and hardy pasture. For months 4-6 of winter, they are supplemented with half-rations of hay. Only in deep winter (month 7+) are they strictly stall-fed full rations (~0.1 tons of hay/month).</li>
-            <li><strong>Feed Shortages:</strong> If hay runs out, cattle/oxen must consume 10x equivalent volume (by weight/energy) in oats. If oats run out, livestock die.</li>
-          </ul>
-        </section>
+      <Section icon={<Flame className="w-5 h-5" />} title="IV · Hearth & Fuel" tone="amber">
+        <p>
+          Cooking, brewing and surviving freezing nights all demand fuel — gathered as wood, peat, turf or dung from
+          the lord's common woodland. A household burns about ½ a cartload per summer month and 1½ in winter.
+        </p>
+        <p className="mt-2 italic text-[var(--color-ink-300)]">
+          When the wood pile fails, the body must heat itself with food: winter caloric needs rise by up to 30 % in
+          a cold hearth, and 10 % in a summer one starved of fire for cooking.
+        </p>
+      </Section>
 
-        <section>
-          <h3 className="text-lg font-bold text-stone-800 mb-3 border-l-4 border-amber-500 pl-3">3. Dairy, Meat & Byproducts</h3>
-          <ul className="list-disc pl-5 space-y-2 text-stone-600 text-sm">
-            <li><strong>Dairy Production:</strong> A fully-grown medieval cow produces roughly 35,000 digestible kcal per month in milk/cheese/butter during the growing season. Sheep herds (assuming ~50% ewes) produce significantly less, modeled at 2,500 kcal per month per producing ewe.</li>
-            <li><strong>Winter Dairy Drop-off:</strong> Without fresh grass (and spending energy staying warm), <em>milk production drops by 65% during the winter months</em>.</li>
-            <li><strong>Autumn Meat & Preserves:</strong> Autumn culls of old cattle and excess sheep/calves yield hundreds of thousands of calories in meat relative to the village population, which are safely "preserved" and eaten primarily to offset winter caloric deficits (at a 15% spoilage rate).</li>
-            <li><strong>Emergency Culling:</strong> If humans face absolute starvation and run out of preserved meat, live sheep are culled dynamically for emergency meat yielding roughly 40,000 kcal per carcass.</li>
-            <li><strong>Wool:</strong> Defaults to ~1.5 lbs per sheep annually, sheared in early summer.</li> 
-          </ul>
-        </section>
+      <Section icon={<Wheat className="w-5 h-5" />} title="V · The Furrows" tone="orange">
+        <ul className="space-y-2 list-none">
+          <FactRow term="Three‑field rotation" def="One third of all arable lies fallow each year. The remaining 'active acres' are split between wheat, barley, oats and cultivated hay-meadow." />
+          <FactRow term="Wheat" def="~8 bu/ac at 60 lbs and 1500 kcal/lb — the bread grain." />
+          <FactRow term="Barley" def="~10 bu/ac — brewed into ale that supplies the village's daily ration of liquid calories (~20 % of intake)." />
+          <FactRow term="Oats" def="~10 bu/ac — primary animal feed; a humble human fallback in famine." />
+          <FactRow term="Hay" def="~1.2 tons/ac — cut from meadow strictly for winter feed." />
+          <FactRow term="Seed grain" def="Strictly protected from consumption. Wheat: 2 bu/ac, barley: 2.5, oats: 4. The next year's harvest depends on it." />
+          <FactRow term="Spoilage" def="Geometric decay in storage — 3 %/month for grain, 5 %/month for hay." />
+          <FactRow term="Tithe & manufactures" def="Tithes (~10%) and non‑cloth manufactures (~5%) absorb a default 15 % of every grain and wool harvest." />
+          <FactRow term="Monte Carlo variability" def="Yields randomise yearly via Box–Muller normal distribution with default σ = 15%. The simulation runs 100 independent five‑year lives." />
+        </ul>
+      </Section>
 
-        <section>
-          <h3 className="text-lg font-bold text-stone-800 mb-3 border-l-4 border-amber-500 pl-3">4. Fuel & Heating</h3>
-          <p className="text-sm text-stone-600 mb-3">
-             Villagers require a constant supply of fuel (wood, peat, turf, or dung) for cooking, brewing, and surviving freezing winter temperatures.
-          </p>
-          <ul className="list-disc pl-5 space-y-2 text-stone-600 text-sm">
-            <li><strong>Gathering:</strong> Fuel is gathered from common woodlands, yielding roughly 1.5 cartloads per acre annually during the harvest cycle.</li>
-            <li><strong>Consumption:</strong> A household burns about 0.5 cartloads per month in the summer (primarily for cooking and brewing) and 1.5 cartloads per month in the winter (for heating).</li>
-            <li><strong>Shortage Penalties:</strong> Freezing villagers require far more energy to maintain body temperature. A massive shortage of winter fuel drives caloric needs up by to 30%. A shortage of summer fuel creates a 10% penalty to caloric needs (simulating the biological inefficiency of eating raw grains or unsterilized forage).</li>
-          </ul>
-        </section>
+      <Card>
+        <CardHeader title="The Simulator's Inner Workings" subtitle="A monthly tick of the manorial clock" icon={<ScrollText className="w-5 h-5" />} />
+        <ol className="space-y-2 text-[0.86rem] text-[var(--color-ink-400)] list-decimal pl-5 marker:font-bold marker:text-[var(--color-crimson-500)] marker:font-[var(--font-display)]">
+          <li><strong>Age the herd</strong> and, in spring, calve cows and lamb ewes.</li>
+          <li><strong>Plant seed</strong> in month 1: the seed corn is locked away from human consumption.</li>
+          <li><strong>Shear sheep</strong> in early summer (month 3) for wool, taxed at the tithe rate.</li>
+          <li><strong>Harvest</strong> at the close of the growing season: yields multiplied by a random factor and tithe deducted.</li>
+          <li><strong>Autumn cull</strong> of old cattle and surplus calves into preserved meat.</li>
+          <li><strong>Burn fuel</strong> for the household. If short, caloric needs rise.</li>
+          <li><strong>Eat dairy and meat</strong> first; then ale (up to 20 % of need); then wheat; then barley; then oats; then emergency sheep.</li>
+          <li><strong>Feed livestock</strong> in winter — hay first, then oats. Shortfall kills beasts.</li>
+          <li><strong>Spoilage</strong> takes its share of all stores.</li>
+          <li><strong>Record</strong> the month, advance the clock.</li>
+        </ol>
+      </Card>
+    </div>
+  );
+}
 
-        <section>
-          <h3 className="text-lg font-bold text-stone-800 mb-3 border-l-4 border-orange-500 pl-3">5. Agriculture, Arable Land & Yields</h3>
-          <p className="text-sm text-stone-600 mb-3">
-             Land allocation accounts for the total boundaries of the village. The "Fallow %" represents land left idle to recover nitrogen (usually acting as summer pasture).
-          </p>
-          <ul className="list-disc pl-5 space-y-2 text-stone-600 text-sm">
-            <li><strong>Crop Rotation:</strong> Assumes a standard three-field system where ~1/3 (33.3%) of land is left fallow each year. The "Active Acres" are split between Wheat, Barley, Oats, and cultivated Hay.</li>
-            <li><strong>Wheat:</strong> ~8 bu/acre (60 lbs/bu @ 1500 kcal/lb) — The primary human staple grain.</li>
-            <li><strong>Barley (and Ale):</strong> ~10 bu/acre (50 lbs/bu @ 1500 kcal/lb) — Consumed heavily as Ale. The simulation attempts to fulfill 20% of human caloric needs through ale if barley stores allow, otherwise it is consumed as coarse bread.</li>
-            <li><strong>Oats:</strong> ~10 bu/acre (32 lbs/bu @ 1200 kcal/lb) — Primary animal feed, fallback for human consumption during starvation.</li>
-            <li><strong>Hay:</strong> ~1.2 tons/acre — Cultivated strictly for winter animal fodder.</li>
-            <li><strong>Seed Grain:</strong> Always deducted strictly from harvested stores (e.g., 2 bu/acre for wheat). "Safe" grain is protected from human consumption to guarantee the next planting.</li>
-            <li><strong>Spoilage:</strong> Crops in loose/granary storage spoil at a modeled geometric decay of ~3% per month (Hay at ~5% due to rot/pests).</li>
-            <li><strong>Monte Carlo Variability:</strong> Yields are randomized using a Box-Muller normal distribution with a default Standard Deviation of 15% to simulate historical weather variance (droughts, floods, late frosts) across 100 simulation lives.</li>
-            <li><strong>Non-Agricultural Budget & Tithes:</strong> Tithes (roughly 10%) and non-cloth manufacturing requirements (smithing, leatherwork, construction, etc., taking up roughly 5% of surplus) are collectively modeled as a direct % deduction from gross grain and wool outputs (default 15%).</li>
-          </ul>
-        </section>
+function Section({ icon, title, tone, children }: { icon: React.ReactNode; title: string; tone: 'green' | 'amber' | 'orange'; children: React.ReactNode }) {
+  const accent = tone === 'green' ? '#5a7745' : tone === 'amber' ? '#b8860b' : '#c46a1a';
+  return (
+    <div className="parchment ornate-border">
+      <div className="relative p-5">
+        <div className="flex items-center gap-2 mb-3 pb-3 border-b border-[rgba(120,80,30,0.25)]" style={{ borderLeft: `4px solid ${accent}`, paddingLeft: 12 }}>
+          <span style={{ color: accent }}>{icon}</span>
+          <h3 className="font-[var(--font-display)] uppercase tracking-[0.16em] text-[0.9rem] font-bold text-[var(--color-ink-500)]">{title}</h3>
+        </div>
+        <div className="text-[0.92rem] text-[var(--color-ink-400)] leading-relaxed space-y-2">{children}</div>
       </div>
     </div>
+  );
+}
+
+function FactRow({ term, def }: { term: string; def: string }) {
+  return (
+    <li className="flex gap-3 items-baseline">
+      <span className="text-[var(--color-gold-700)] mt-1">❧</span>
+      <div>
+        <span className="font-[var(--font-display)] uppercase tracking-[0.08em] text-[0.78rem] font-semibold text-[var(--color-ink-500)]">{term}</span>
+        <span className="text-[var(--color-ink-400)]"> — {def}</span>
+      </div>
+    </li>
   );
 }

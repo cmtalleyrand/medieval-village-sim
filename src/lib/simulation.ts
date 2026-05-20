@@ -684,7 +684,7 @@ export function solveMinimumAcres(params: SimParams): number {
   const activeAcres = oatAcres + hayAcres + totalWheatNeeded * 1.15;
   
   // Required total acres accounts for fallow land
-  const requiredTotalAcres = activeAcres / (1 - params.fallowPct / 100);
+  const requiredTotalAcres = activeAcres / (1 - DEFAULTS.fallowPct / 100);
   
   return Math.ceil(requiredTotalAcres / 10) * 10;
 }
