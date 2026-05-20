@@ -1,4 +1,6 @@
-export const DEFAULTS = {
+import type { SimParams } from "./simulation";
+
+export const DEFAULTS: SimParams = {
   households: 20,
   growingMonths: 7,
   winterMonths: 5,
