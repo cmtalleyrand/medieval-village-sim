@@ -488,20 +488,25 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         if (kcalNeeded > 0) {
           hadShortage = true;
           if (kcalNeeded > currentMonthlyKcalReq * 0.2) hadSevere = true;
-          
-          while (currentSheep > 0 && kcalNeeded > 0) {
-              currentSheep--;
-              let meatKcal = params.production.sheepMeatKcal;
-              kcalNeeded = Math.max(0, kcalNeeded - meatKcal);
-              dietAgg.meat += meatKcal;
-              animalDeath = true;
+
+          if (isWinter) {
+            while (currentSheep > 0 && kcalNeeded > 0) {
+                currentSheep--;
+                let meatKcal = params.production.sheepMeatKcal;
+                kcalNeeded = Math.max(0, kcalNeeded - meatKcal);
+                dietAgg.meat += meatKcal;
+                animalDeath = true;
+            }
           }
+
           if (kcalNeeded > 0) dietAgg.deficit += kcalNeeded;
         }
 
         // Animals consume feed
         let oatsNeeded = 0;
         let hayNeeded = 0;
+        let sheepHayNeeded = 0;
+        let cattleHayNeeded = 0;
 
         if (isSeedPlanting) {
             // Active oxen need some oats for spring planting
@@ -517,20 +522,25 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
                 else if (c.ageMonths < 36) multiplier = 0.5;
 
                 if (c.type === 'ox' || c.type === 'bull') {
-                    hayNeeded += params.feedNeedsWinter.oxenHay * multiplier;
+                    const oxHay = params.feedNeedsWinter.oxenHay * multiplier;
+                    hayNeeded += oxHay;
+                    cattleHayNeeded += oxHay;
                     oatsNeeded += params.feedNeedsWinter.oxenOats * multiplier;
                 } else if (c.type === 'cow') {
-                    hayNeeded += params.feedNeedsWinter.cowHay * multiplier;
+                    const cowHay = params.feedNeedsWinter.cowHay * multiplier;
+                    hayNeeded += cowHay;
+                    cattleHayNeeded += cowHay;
                     oatsNeeded += params.feedNeedsWinter.cowOats * multiplier;
                 }
             });
 
             // Sheep
             if (winterMonthIndex > 3 && winterMonthIndex <= 6) {
-                hayNeeded += currentSheep * (params.feedNeedsWinter.sheepHay / 2);
+                sheepHayNeeded = currentSheep * (params.feedNeedsWinter.sheepHay / 2);
             } else if (winterMonthIndex > 6) {
-                hayNeeded += currentSheep * params.feedNeedsWinter.sheepHay;
+                sheepHayNeeded = currentSheep * params.feedNeedsWinter.sheepHay;
             }
+            hayNeeded += sheepHayNeeded;
         }
 
         // Deduct feed, preferring hay. If hay runs out, cows/oxen switch strictly to oats
@@ -542,14 +552,17 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
           const hayShortfall = hayNeeded - hayStocks;
           hayStocks = 0;
           
-          // If hay runs out, sheep begin to die of starvation immediately because they can't digest raw oats efficiently
-          if (hayShortfall > 0 && currentSheep > 0) {
-              const sheepDying = Math.min(currentSheep, Math.ceil(hayShortfall / params.feedNeedsWinter.sheepHay));
+          // If hay runs out, only sheep-specific hay shortfall causes sheep deaths.
+          // Cattle hay shortfalls are handled via oats substitution below.
+          const sheepHayShortfall = Math.min(hayShortfall, sheepHayNeeded);
+          if (sheepHayShortfall > 0 && currentSheep > 0) {
+              const sheepDying = Math.min(currentSheep, Math.ceil(sheepHayShortfall / params.feedNeedsWinter.sheepHay));
               currentSheep -= sheepDying;
               animalDeath = true;
           }
           
-          oatsNeeded += hayShortfall * 10; // rough conversion: 1 ton hay = 10 bu oats replacement for cattle
+          const cattleHayShortfall = Math.min(hayShortfall, cattleHayNeeded);
+          oatsNeeded += cattleHayShortfall * 10; // rough conversion: 1 ton hay = 10 bu oats replacement for cattle
         }
 
         if (oatStocks >= oatsNeeded) {
@@ -567,7 +580,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
                   if (herd.length > 0) herd.pop(); // Randomly kill a cattle
               }
           }
-          currentSheep = Math.max(0, currentSheep - 2); // Cull remaining sheep to 'buy' feed for plow teams
+          // Sheep are not culled here: this branch represents oat shortage for working cattle.
         }
 
         // Spoilage at the end of the month
