@@ -81,7 +81,7 @@ export interface SimResult {
   avgWoolPerYear: number;
   logs: string[];
   history: MonthHistory[];
-  diet: HumanDiet;
+  diet: HumanDiet; // kcal per household per simulation-year average
 }
 
 interface Cattle {
@@ -114,7 +114,6 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   let exampleHistory: MonthHistory[] = [];
   let dietAgg: HumanDiet = { wheat: 0, barley: 0, oats: 0, dairy: 0, meat: 0, deficit: 0 };
   
-  const totalPeople = params.households * (params.peoplePerHH.male + params.peoplePerHH.female + params.peoplePerHH.child);
   const dailyKcalReq = params.households * (params.kcalPerDay.male * params.peoplePerHH.male + params.kcalPerDay.female * params.peoplePerHH.female + params.kcalPerDay.child * params.peoplePerHH.child);
   const monthlyKcalReq = dailyKcalReq * 30;
 
@@ -544,6 +543,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
     totalOatsEnd += oatStocks;
   }
 
+  const dietDenominator = iterations * YEARS_PER_ITERATION * params.households;
+
   return {
     humanShortageObj: shortageCount / iterations,
     severeShortageObj: severeShortageCount / iterations,
@@ -554,7 +555,14 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
     avgWoolPerYear: totalWoolProduced / (iterations * YEARS_PER_ITERATION),
     logs: [], // Add debug logs if necessary
     history: exampleHistory,
-    diet: dietAgg
+    diet: {
+      wheat: dietAgg.wheat / dietDenominator,
+      barley: dietAgg.barley / dietDenominator,
+      oats: dietAgg.oats / dietDenominator,
+      dairy: dietAgg.dairy / dietDenominator,
+      meat: dietAgg.meat / dietDenominator,
+      deficit: dietAgg.deficit / dietDenominator
+    }
   };
 }
 
@@ -564,7 +572,7 @@ export function autoAllocateLand(params: SimParams): SimParams["landSplit"] {
   const dailyKcalReq = params.households * (params.kcalPerDay.male * params.peoplePerHH.male + params.kcalPerDay.female * params.peoplePerHH.female + params.kcalPerDay.child * params.peoplePerHH.child);
   const yearlyKcalReq = dailyKcalReq * 365;
 
-  const titheFactor = (100 - DEFAULTS.titheAndManufacturePct) / 100;
+  const titheFactor = (100 - params.titheAndManufacturePct) / 100
 
   const totalOxen = params.households * params.animalsPerHH.oxen;
   const totalCows = params.households * params.animalsPerHH.cows;
@@ -645,7 +653,7 @@ export function solveMinimumAcres(params: SimParams): number {
   const dailyKcalReq = params.households * (params.kcalPerDay.male * params.peoplePerHH.male + params.kcalPerDay.female * params.peoplePerHH.female + params.kcalPerDay.child * params.peoplePerHH.child);
   const yearlyKcalReq = dailyKcalReq * 365;
 
-  const titheFactor = (100 - DEFAULTS.titheAndManufacturePct) / 100;
+  const titheFactor = (100 - params.titheAndManufacturePct) / 100
 
   const totalOxen = params.households * params.animalsPerHH.oxen;
   const totalCows = params.households * params.animalsPerHH.cows;

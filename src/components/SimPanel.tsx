@@ -19,10 +19,48 @@ export function SimPanel({ view, params, setParams }: Props) {
   const [results, setResults] = useState<SimResult | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
 
+  const clamp = (value: number, min: number) => Math.max(min, Number.isFinite(value) ? value : min);
+  const clampParams = (next: SimParams): SimParams => ({
+    ...next,
+    households: Math.floor(clamp(next.households, 1)),
+    yields: {
+      wheat: clamp(next.yields.wheat, 0.000001),
+      barley: clamp(next.yields.barley, 0.000001),
+      oats: clamp(next.yields.oats, 0.000001),
+      hay: clamp(next.yields.hay, 0.000001),
+    },
+    kcalPerDay: {
+      male: clamp(next.kcalPerDay.male, 1),
+      female: clamp(next.kcalPerDay.female, 1),
+      child: clamp(next.kcalPerDay.child, 1),
+    },
+    cropStats: {
+      wheat: {
+        kcalPerBu: clamp(next.cropStats.wheat.kcalPerBu, 1),
+        seedRate: clamp(next.cropStats.wheat.seedRate, 0),
+      },
+      barley: {
+        kcalPerBu: clamp(next.cropStats.barley.kcalPerBu, 1),
+        seedRate: clamp(next.cropStats.barley.seedRate, 0),
+      },
+      oats: {
+        kcalPerBu: clamp(next.cropStats.oats.kcalPerBu, 1),
+        seedRate: clamp(next.cropStats.oats.seedRate, 0),
+      },
+    },
+  });
+
+  const clampedSetParams: Props['setParams'] = (updater) => {
+    setParams(prev => {
+      const proposed = typeof updater === 'function' ? updater(prev) : updater;
+      return clampParams(proposed);
+    });
+  };
+
   useEffect(() => {
     setIsSimulating(true);
     const t = setTimeout(() => {
-      const r = runSimulation(params);
+      const r = runSimulation(clampParams(params));
       setResults(r);
       setIsSimulating(false);
     }, 80);
@@ -44,7 +82,7 @@ export function SimPanel({ view, params, setParams }: Props) {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
       <div className="xl:col-span-5 space-y-5">
-        <CouncilPanel params={params} setParams={setParams} />
+        <CouncilPanel params={params} setParams={clampedSetParams} />
       </div>
 
       <div className="xl:col-span-7 space-y-5">
