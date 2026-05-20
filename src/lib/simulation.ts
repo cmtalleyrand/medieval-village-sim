@@ -870,6 +870,57 @@ export function autoAllocateLand(params: SimParams): SimParams["landSplit"] {
   };
 }
 
+
+export interface RiskTargetSolution {
+  totalAcres: number;
+  woodlandAcres: number;
+  landSplit: SimParams["landSplit"];
+  famineRisk: number;
+  severeFamineRisk: number;
+}
+
+function evaluateRiskCandidate(params: SimParams, totalAcres: number, woodlandAcres: number, runs: number) {
+  const candidate: SimParams = { ...params, totalAcres, woodlandAcres };
+  const result = runSimulation(candidate, runs);
+  return { famineRisk: result.humanShortageObj, severeFamineRisk: result.severeShortageObj };
+}
+
+export function solveLandForRiskTarget(params: SimParams, targetRisk = 0.05, runs = 120): RiskTargetSolution {
+  const plan = planVillageResources(params, "min-total-land");
+  const farmlandBase = Math.max(1, Math.ceil(plan.solution.farmlandAcres));
+  const woodlandBase = Math.max(1, Math.ceil(plan.solution.forestAcres));
+  const landSplit = autoAllocateLand({ ...params, totalAcres: farmlandBase, woodlandAcres: woodlandBase });
+
+  let low = 0.5;
+  let high = 1;
+  let highEval = evaluateRiskCandidate({ ...params, landSplit }, Math.ceil(farmlandBase * high), Math.ceil(woodlandBase * high), runs);
+  while ((highEval.famineRisk > targetRisk || highEval.severeFamineRisk > targetRisk) && high < 8) {
+    low = high;
+    high *= 1.5;
+    highEval = evaluateRiskCandidate({ ...params, landSplit }, Math.ceil(farmlandBase * high), Math.ceil(woodlandBase * high), runs);
+  }
+
+  for (let i = 0; i < 18; i++) {
+    const mid = (low + high) / 2;
+    const acres = Math.ceil(farmlandBase * mid);
+    const woods = Math.ceil(woodlandBase * mid);
+    const risk = evaluateRiskCandidate({ ...params, landSplit }, acres, woods, runs);
+    if (risk.famineRisk <= targetRisk && risk.severeFamineRisk <= targetRisk) {
+      high = mid;
+      highEval = risk;
+    } else {
+      low = mid;
+    }
+  }
+
+  return {
+    totalAcres: Math.ceil(farmlandBase * high / 10) * 10,
+    woodlandAcres: Math.ceil(woodlandBase * high / 10) * 10,
+    landSplit,
+    famineRisk: highEval.famineRisk,
+    severeFamineRisk: highEval.severeFamineRisk,
+  };
+}
 export function solveMinimumAcres(params: SimParams): number {
   const report = planVillageResources(params, "min-total-land");
   const requiredTotalAcres = report.solution.totalLandAcres;

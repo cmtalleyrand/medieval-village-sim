@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Castle, Wheat, Trees, Settings2, ChevronDown, ChevronRight, Sparkles, Calculator, Users, Sprout, Beef, Flame, Lock, Unlock } from 'lucide-react';
 import { Card, CardHeader, Fleuron, Tooltip, IconButton } from './ui';
-import { SimParams, autoAllocateLand, planVillageResources, solveMinimumAcres } from '../lib/simulation';
+import { SimParams, autoAllocateLand, solveLandForRiskTarget, solveMinimumAcres } from '../lib/simulation';
 
 interface Props {
   params: SimParams;
@@ -82,9 +82,13 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
 
   const handleSolveAcres = () => {
     setAndCommitParams(prev => {
-      const min = solveMinimumAcres(prev);
-      const np = { ...prev, totalAcres: min };
-      return { ...np, landSplit: autoAllocateLand(np) };
+      const solved = solveLandForRiskTarget(prev, 0.05);
+      return {
+        ...prev,
+        totalAcres: solved.totalAcres,
+        woodlandAcres: solved.woodlandAcres,
+        landSplit: solved.landSplit,
+      };
     });
   };
 
