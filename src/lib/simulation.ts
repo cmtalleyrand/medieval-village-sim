@@ -172,13 +172,13 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         for(let j = 0; j < neededOxenPerYear; j++) herd.push({ type: 'ox', ageMonths: ageYears * 12 + 6 });
     }
     
-    let hadShortage = false;
-    let hadSevere = false;
-    let animalDeath = false;
-    let hadFuelShortage = false;
-
     // Simulate X years continuously
     for (let year = 1; year <= YEARS_PER_ITERATION; year++) {
+      let hadShortage = false;
+      let hadSevere = false;
+      let animalDeath = false;
+      let hadFuelShortage = false;
+
       // Annually randomize yields
       const wYield = randomizeYield(params.yields.wheat, params.yieldVariability);
       const bYield = randomizeYield(params.yields.barley, params.yieldVariability);
@@ -555,24 +555,25 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
           });
         }
       }
-    }
 
-    if (hadShortage) shortageCount++;
-    if (hadSevere) severeShortageCount++;
-    if (animalDeath) animalDeathCount++;
-    if (hadFuelShortage) fuelShortageCount++;
+      if (hadShortage) shortageCount++;
+      if (hadSevere) severeShortageCount++;
+      if (animalDeath) animalDeathCount++;
+      if (hadFuelShortage) fuelShortageCount++;
+    }
     
     totalWheatEnd += wheatStocks;
     totalOatsEnd += oatStocks;
   }
 
   const dietDenominator = iterations * YEARS_PER_ITERATION * params.households;
+  const annualDenominator = iterations * YEARS_PER_ITERATION;
 
   return {
-    humanShortageObj: shortageCount / iterations,
-    severeShortageObj: severeShortageCount / iterations,
-    animalDeathObj: animalDeathCount / iterations,
-    fuelShortageObj: fuelShortageCount / iterations,
+    humanShortageObj: shortageCount / annualDenominator,
+    severeShortageObj: severeShortageCount / annualDenominator,
+    animalDeathObj: animalDeathCount / annualDenominator,
+    fuelShortageObj: fuelShortageCount / annualDenominator,
     avgWheatRemaining: totalWheatEnd / iterations,
     avgOatsRemaining: totalOatsEnd / iterations,
     avgWoolPerYear: totalWoolProduced / (iterations * YEARS_PER_ITERATION),
@@ -587,6 +588,31 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
       deficit: dietAgg.deficit / dietDenominator
     }
   };
+}
+
+function makeSeededRandom(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (1664525 * state + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+}
+
+export function runDeterministicRiskSmokeCheck(): { annualFamineProbability: number; yearlyDeficitCount: number } {
+  const seededRandom = makeSeededRandom(123456789);
+  const originalRandom = Math.random;
+  Math.random = seededRandom;
+  try {
+    const result = runSimulation(DEFAULTS, 20);
+    const totalYears = 20 * 5;
+    const yearlyDeficitCount = Math.round(result.humanShortageObj * totalYears);
+    return {
+      annualFamineProbability: result.humanShortageObj,
+      yearlyDeficitCount,
+    };
+  } finally {
+    Math.random = originalRandom;
+  }
 }
 
 export function autoAllocateLand(params: SimParams): SimParams["landSplit"] {

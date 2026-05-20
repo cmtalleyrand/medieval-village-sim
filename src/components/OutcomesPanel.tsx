@@ -69,14 +69,14 @@ export function OutcomesPanel({ results, params, isSimulating }: Props) {
       <Card>
         <CardHeader
           title="Tides of Fortune"
-          subtitle={`Across 100 imagined fates, weighed across ${5} winters`}
+          subtitle={`Annual probability across ${100 * 5} simulated years (100 runs × 5 years)`}
           icon={<AlertTriangle className="w-5 h-5" />}
         />
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <RiskMeter
             label="Famine"
             value={results.humanShortageObj * 100}
-            tooltip="Share of simulated years in which villagers fell into caloric deficit."
+            tooltip="Annual probability: years with any caloric deficit divided by total simulated years."
           />
           <RiskMeter
             label="Severe Famine"
@@ -86,12 +86,12 @@ export function OutcomesPanel({ results, params, isSimulating }: Props) {
           <RiskMeter
             label="Beast Loss"
             value={results.animalDeathObj * 100}
-            tooltip="Share of years in which livestock starved or were emergency-culled."
+            tooltip="Annual probability: years in which livestock die from feed stress or emergency culling."
           />
           <RiskMeter
             label="Cold Hearth"
             value={results.fuelShortageObj * 100}
-            tooltip="Share of years with fuel shortage — driving heating-calorie penalties."
+            tooltip="Annual probability: years with any fuel shortage that triggers calorie-need penalties."
           />
         </div>
       </Card>
@@ -228,15 +228,15 @@ function synthesizeVerdict(
   let color = '#5a7745';
   let body = '';
 
-  if (severe >= 30 || famine >= 60) {
+  if (severe >= 12 || famine >= 30) {
     headline = 'A village on the brink.';
     color = '#9b1c1c';
     body = 'The fields will not yield enough. Most years end with the children eating oats, and many with empty bowls. The lord may seize the seed corn before winter is out.';
-  } else if (famine >= 25 || beast >= 20) {
+  } else if (famine >= 15 || beast >= 12) {
     headline = 'A precarious balance.';
     color = '#c46a1a';
     body = 'In good years the village will eat its fill; in lean years, the strong will survive and the weak will not. The pantry is thin and the byre vulnerable.';
-  } else if (famine >= 8 || fuel >= 8) {
+  } else if (famine >= 5 || fuel >= 10) {
     headline = 'A watchful peace.';
     color = '#b8860b';
     body = 'The harvest holds in most seasons, though a hard winter or wet spring would force the village to fast. Stewardship of stores will matter.';
