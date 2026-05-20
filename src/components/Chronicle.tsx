@@ -11,7 +11,7 @@ interface ChronicleProps {
   params: SimParams;
 }
 
-type ChartFocus = 'grain' | 'hay' | 'fuel' | 'livestock' | 'all';
+type ChartFocus = 'grain' | 'hay' | 'fuel' | 'livestock' | 'cloth' | 'all';
 
 export function Chronicle({ history, params }: ChronicleProps) {
   const [currentMonth, setCurrentMonth] = useState(0);
@@ -48,7 +48,7 @@ export function Chronicle({ history, params }: ChronicleProps) {
 
   // Granary capacities (max ever reached) for scale
   const maxValues = useMemo(() => {
-    let mw = 0, mb = 0, mo = 0, mh = 0, mf = 0, mm = 0;
+    let mw = 0, mb = 0, mo = 0, mh = 0, mf = 0, mm = 0, mc = 0, ms = 0, mwool = 0, mcloth = 0;
     for (const r of history) {
       if (r.wheat > mw) mw = r.wheat;
       if (r.barley > mb) mb = r.barley;
@@ -56,8 +56,12 @@ export function Chronicle({ history, params }: ChronicleProps) {
       if (r.hay > mh) mh = r.hay;
       if (r.fuel > mf) mf = r.fuel;
       if (r.meatStock > mm) mm = r.meatStock;
+      if (r.cattleCount > mc) mc = r.cattleCount;
+      if (r.sheep > ms) ms = r.sheep;
+      if (r.woolStocks > mwool) mwool = r.woolStocks;
+      if (r.clothStocks > mcloth) mcloth = r.clothStocks;
     }
-    return { wheat: mw, barley: mb, oats: mo, hay: mh, fuel: mf, meat: mm };
+    return { wheat: mw, barley: mb, oats: mo, hay: mh, fuel: mf, meat: mm, cattle: mc, sheep: ms, wool: mwool, cloth: mcloth };
   }, [history]);
 
   // Events derived from current row (e.g. shortage, shearing)
@@ -119,6 +123,10 @@ export function Chronicle({ history, params }: ChronicleProps) {
             <StockJar label="Hay" value={cur.hay} unit="tons" color="#5a7745" max={maxValues.hay} icon="🌿" />
             <StockJar label="Fuel" value={cur.fuel} unit="carts" color="#6b4423" max={maxValues.fuel} icon="🪵" />
             <StockJar label="Preserved Meat" value={cur.meatStock / 1000} unit="kkcal" color="#9b1c1c" max={maxValues.meat / 1000} icon="🥩" />
+            <StockJar label="Cattle" value={cur.cattleCount} unit="head" color="#7a3a1c" max={maxValues.cattle} icon="🐄" />
+            <StockJar label="Sheep" value={cur.sheep} unit="head" color="#8a7a60" max={maxValues.sheep} icon="🐑" />
+            <StockJar label="Wool Store" value={cur.woolStocks} unit="lbs" color="#c8b090" max={maxValues.wool} icon="🧶" />
+            <StockJar label="Cloth Store" value={cur.clothStocks} unit="lbs" color="#9b7eb8" max={maxValues.cloth} icon="🧵" />
           </div>
         </div>
 
@@ -182,7 +190,7 @@ export function Chronicle({ history, params }: ChronicleProps) {
           icon={<Wheat className="w-5 h-5" />}
           right={
             <div className="flex gap-1">
-              {(['all', 'grain', 'hay', 'fuel', 'livestock'] as ChartFocus[]).map(f => (
+              {(['all', 'grain', 'hay', 'fuel', 'livestock', 'cloth'] as ChartFocus[]).map(f => (
                 <button
                   key={f}
                   onClick={() => setFocus(f)}
@@ -316,6 +324,40 @@ export function Chronicle({ history, params }: ChronicleProps) {
                 <Line type="stepAfter" dataKey="cattleCount" name="Cattle" stroke="#9b1c1c" strokeWidth={2} dot={false} />
                 <Line type="stepAfter" dataKey="sheep" name="Sheep" stroke="#3d2a15" strokeWidth={2} dot={false} />
               </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {(focus === 'cloth') && (
+          <div className="h-56 -ml-3">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 6, right: 16, bottom: 4, left: 8 }}>
+                <defs>
+                  <linearGradient id="gradWool" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#c8b090" stopOpacity={0.6} />
+                    <stop offset="100%" stopColor="#c8b090" stopOpacity={0.05} />
+                  </linearGradient>
+                  <linearGradient id="gradCloth" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#9b7eb8" stopOpacity={0.6} />
+                    <stop offset="100%" stopColor="#9b7eb8" stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="#8a6a3f" opacity={0.18} />
+                <XAxis dataKey="month" tickFormatter={(v) => {
+                  const y = Math.floor((v - 1) / monthsPerYear) + 1;
+                  const m = ((v - 1) % monthsPerYear) + 1;
+                  return m === 1 ? `Y${y}` : '';
+                }} tick={{ fill: '#5e4222', fontSize: 11, fontFamily: 'Cinzel, serif' }} axisLine={{ stroke: '#8a6a3f' }} tickLine={{ stroke: '#8a6a3f' }} />
+                <YAxis tick={{ fill: '#8a6a3f', fontSize: 10 }} axisLine={{ stroke: '#8a6a3f' }} tickLine={{ stroke: '#8a6a3f' }} />
+                <RechartsTooltip contentStyle={{ background: '#2a1d10', border: '1px solid #b8860b', borderRadius: 3, fontFamily: 'EB Garamond, serif', color: '#f3e8c8', fontSize: 12 }} labelStyle={{ color: '#e5c373' }} />
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <ReferenceArea key={`winter-c-${i}`} x1={i * monthsPerYear + params.growingMonths + 1} x2={(i + 1) * monthsPerYear} fill="#b8d0e0" fillOpacity={0.18} strokeOpacity={0} />
+                ))}
+                <ReferenceLine x={cur.month} stroke="#9b1c1c" strokeWidth={1.5} strokeDasharray="2 3" />
+                <Legend wrapperStyle={{ fontFamily: 'Cinzel, serif', fontSize: 10, letterSpacing: 1.4, color: '#5e4222' }} iconType="square" />
+                <Area type="monotone" dataKey="woolStocks" name="Raw Wool (lbs)" stroke="#a08060" fill="url(#gradWool)" strokeWidth={2} />
+                <Area type="monotone" dataKey="clothStocks" name="Finished Cloth (lbs)" stroke="#7a5ea0" fill="url(#gradCloth)" strokeWidth={2} />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         )}
