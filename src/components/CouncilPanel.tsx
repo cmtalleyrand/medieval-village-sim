@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Castle, Wheat, Trees, Settings2, ChevronDown, ChevronRight, Sparkles, Calculator, Users, Sprout, Beef, Flame, Lock, Unlock } from 'lucide-react';
 import { Card, CardHeader, Fleuron, Tooltip, IconButton } from './ui';
-import { SimParams, autoAllocateLand, solveMinimumAcres } from '../lib/simulation';
+import { SimParams, autoAllocateLand, planVillageResources, solveMinimumAcres } from '../lib/simulation';
 
 interface Props {
   params: SimParams;
@@ -97,6 +97,26 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
   );
   const totalCattle = params.households * (params.animalsPerHH.oxen + params.animalsPerHH.cows);
   const totalSheep = params.households * params.animalsPerHH.sheep;
+  const plannerReport = useMemo(() => planVillageResources(params, 'fixed-total-land'), [params]);
+  const barleySharePct = Math.max(0, (plannerReport.slacks.barleyLower + 0.10) * 100);
+  const feedMargin = Math.min(plannerReport.slacks.oatsFeed, plannerReport.slacks.hayFeed);
+  const limitingLabels: Record<string, string> = {
+    calorie: 'Calories',
+    barleyLower: 'Barley lower',
+    barleyUpper: 'Barley upper',
+    oatsFeed: 'Oats feed',
+    hayFeed: 'Hay feed',
+    fuel: 'Fuel',
+    tractionOxen: 'Traction oxen',
+    cowsToOxen: 'Cow ratio',
+    bullsToCows: 'Bull ratio',
+    sheepClothing: 'Wool',
+    totalLand: 'Total land',
+  };
+  const bindingConstraints = Object.entries(plannerReport.slacks)
+    .map(([key, slack]) => ({ key, slack, magnitude: Math.abs(slack) }))
+    .sort((a, b) => a.magnitude - b.magnitude)
+    .slice(0, 4);
 
   return (
     <div className="space-y-4">
@@ -256,6 +276,57 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
             })}
           </div>
 
+          <div className="parchment rounded-sm p-3 border border-[rgba(120,80,30,0.22)] space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-[var(--font-display)] uppercase tracking-[0.14em] text-[0.65rem] text-[var(--color-ink-400)] font-semibold">
+                Solver report
+              </span>
+              <span className={`text-[0.66rem] font-bold ${plannerReport.feasible ? 'text-[var(--color-moss-600)]' : 'text-[var(--color-crimson-500)]'}`}>
+                {plannerReport.feasible ? 'Feasible' : 'Infeasible'}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-[0.7rem] tabular-nums">
+              <MiniMetric label="Farmland" value={plannerReport.solution.farmlandAcres} unit="ac" />
+              <MiniMetric label="Pasture" value={plannerReport.solution.pastureAcres} unit="ac" />
+              <MiniMetric label="Forest" value={plannerReport.solution.forestAcres} unit="ac" />
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-[0.7rem] tabular-nums">
+              <MiniMetric label="Wheat" value={(plannerReport.solution.wheatAcres / Math.max(0.000001, plannerReport.solution.activeFarmlandAcres)) * 100} unit="%" suffix={` · ${plannerReport.solution.wheatAcres.toFixed(1)} ac`} />
+              <MiniMetric label="Barley" value={(plannerReport.solution.barleyAcres / Math.max(0.000001, plannerReport.solution.activeFarmlandAcres)) * 100} unit="%" suffix={` · ${plannerReport.solution.barleyAcres.toFixed(1)} ac`} />
+              <MiniMetric label="Oats" value={(plannerReport.solution.oatAcres / Math.max(0.000001, plannerReport.solution.activeFarmlandAcres)) * 100} unit="%" suffix={` · ${plannerReport.solution.oatAcres.toFixed(1)} ac`} />
+              <MiniMetric label="Hay" value={(plannerReport.solution.hayAcres / Math.max(0.000001, plannerReport.solution.activeFarmlandAcres)) * 100} unit="%" suffix={` · ${plannerReport.solution.hayAcres.toFixed(1)} ac`} />
+            </div>
+            <div className="grid grid-cols-4 gap-2 text-[0.7rem] tabular-nums">
+              <MiniMetric label="Sheep" value={plannerReport.solution.sheep} />
+              <MiniMetric label="Oxen" value={plannerReport.solution.oxen} />
+              <MiniMetric label="Cows" value={plannerReport.solution.cows} />
+              <MiniMetric label="Bulls" value={plannerReport.solution.bulls} />
+            </div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[0.68rem] tabular-nums">
+              <PolicyMetric label="Barley share" value={barleySharePct} unit="%" />
+              <PolicyMetric label="Kcal margin" value={plannerReport.slacks.calorie} unit="kcal" />
+              <PolicyMetric label="Feed margin" value={feedMargin} unit="units" />
+              <PolicyMetric label="Fuel margin" value={plannerReport.slacks.fuel} unit="loads" />
+            </div>
+            <div className="space-y-1.5">
+              {plannerReport.constraintAudit.map(({ key, label, unit, required, supplied, slack }) => {
+                return (
+                  <div key={key} className="flex items-center justify-between border-b border-[rgba(120,80,30,0.14)] pb-1 text-[0.66rem] tabular-nums">
+                    <span className="text-[var(--color-ink-400)]">{label}</span>
+                    <span className="text-[var(--color-ink-500)]">{required.toFixed(1)} → {supplied.toFixed(1)} → {slack.toFixed(1)} {unit}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {bindingConstraints.map(({ key, slack }) => (
+                <span key={key} className="px-2 py-0.5 rounded-sm bg-[rgba(120,80,30,0.10)] text-[0.62rem] text-[var(--color-ink-400)] tabular-nums">
+                  {limitingLabels[key] ?? key}: {slack.toFixed(3)}
+                </span>
+              ))}
+            </div>
+          </div>
+
           <div>
             <Label tooltip="Random year-to-year weather variation. Higher = more boom-and-bust harvests.">
               Yield Variability
@@ -407,6 +478,26 @@ function Subsection({ icon, title, children }: { icon: React.ReactNode; title: s
         </span>
       </div>
       {children}
+    </div>
+  );
+}
+
+function MiniMetric({ label, value, unit, suffix }: { label: string; value: number; unit?: string; suffix?: string }) {
+  return (
+    <div className="rounded-sm bg-[rgba(120,80,30,0.08)] px-2 py-1">
+      <div className="text-[0.58rem] uppercase tracking-[0.12em] text-[var(--color-ink-300)]">{label}</div>
+      <div className="text-[0.74rem] text-[var(--color-ink-500)] font-semibold tabular-nums">
+        {value.toFixed(unit === '%' ? 1 : 2)}{unit ? ` ${unit}` : ''}{suffix ?? ''}
+      </div>
+    </div>
+  );
+}
+
+function PolicyMetric({ label, value, unit }: { label: string; value: number; unit: string }) {
+  return (
+    <div className="flex items-center justify-between border-b border-[rgba(120,80,30,0.14)] pb-1">
+      <span className="text-[var(--color-ink-400)]">{label}</span>
+      <span className="font-semibold text-[var(--color-ink-500)]">{value.toFixed(2)} {unit}</span>
     </div>
   );
 }

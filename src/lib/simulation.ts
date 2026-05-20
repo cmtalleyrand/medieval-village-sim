@@ -897,6 +897,14 @@ interface PlannerReport {
     bulls: number;
   };
   slacks: Record<string, number>;
+  constraintAudit: Array<{
+    key: string;
+    label: string;
+    unit: string;
+    required: number;
+    supplied: number;
+    slack: number;
+  }>;
 }
 
 export function planVillageResources(params: SimParams, mode: PlannerMode = "min-total-land"): PlannerReport {
@@ -957,11 +965,20 @@ export function planVillageResources(params: SimParams, mode: PlannerMode = "min
     totalLand: mode === "fixed-total-land" ? fixedTotal - totalLandAcres : 0,
   };
   const feasible = Object.values(slacks).every((s) => s >= -1e-6);
+  const constraintAudit = [
+    { key: "calorie", label: "Calories", unit: "kcal", required: kcalNeed, supplied: cropKcal + animalKcal, slack: slacks.calorie },
+    { key: "oatsFeed", label: "Oats feed", unit: "bu", required: oatsFeedNeed, supplied: oatAcres * oatsFeedPerAcre, slack: slacks.oatsFeed },
+    { key: "hayFeed", label: "Hay feed", unit: "tons", required: hayFeedNeed, supplied: hayAcres * hayFeedPerAcre, slack: slacks.hayFeed },
+    { key: "fuel", label: "Fuel", unit: "loads", required: fuelNeed, supplied: forestAcres * fuelPerForestAcre, slack: slacks.fuel },
+    { key: "sheepClothing", label: "Wool", unit: "lb", required: params.households * (params.peoplePerHH.male + params.peoplePerHH.female + params.peoplePerHH.child) * params.clothingNeedWoolLbs * riskFactor, supplied: sheep * params.woolPerSheep, slack: slacks.sheepClothing },
+    { key: "totalLand", label: "Total land", unit: "ac", required: totalLandAcres, supplied: mode === "fixed-total-land" ? fixedTotal : totalLandAcres, slack: slacks.totalLand },
+  ];
   return {
     mode,
     feasible,
     objectiveValue: mode === "fixed-total-land" ? slacks.totalLand : totalLandAcres,
     solution: { totalLandAcres: mode === "fixed-total-land" ? fixedTotal : totalLandAcres, farmlandAcres, activeFarmlandAcres, pastureAcres, forestAcres, wheatAcres, barleyAcres, oatAcres, hayAcres, sheep, oxen, cows, bulls },
     slacks,
+    constraintAudit,
   };
 }
