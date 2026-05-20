@@ -290,11 +290,11 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
         <div className="grid grid-cols-2 gap-3">
           <NumberField label="Woodland (ac)" tooltip="Acres of common woodland where peasants gather wood, peat, or turf."
             value={params.woodlandAcres} onChange={v => setField('woodlandAcres', v)} onCommit={commitParams} />
-          <NumberField label="Yield/ac/yr" tooltip="Stacked cubic metres (stere) gathered per acre per year."
+          <NumberField label="Yield/ac/yr" tooltip="Cartloads gathered per acre per year."
             step={0.1} value={params.fuelYieldPerAcre} onChange={v => setField('fuelYieldPerAcre', v)} onCommit={commitParams} />
-          <NumberField label="Summer need" tooltip="Stacked m³ per household per month, for cooking only."
+          <NumberField label="Summer need" tooltip="Cartloads per household per month, for cooking only."
             step={0.1} value={params.fuelNeedsSummer} onChange={v => setField('fuelNeedsSummer', v)} onCommit={commitParams} />
-          <NumberField label="Winter need" tooltip="Stacked m³ per household per month for cooking + heating."
+          <NumberField label="Winter need" tooltip="Cartloads per household per month for cooking + heating."
             step={0.1} value={params.fuelNeedsWinter} onChange={v => setField('fuelNeedsWinter', v)} onCommit={commitParams} />
         </div>
       </Card>

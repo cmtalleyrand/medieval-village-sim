@@ -33,9 +33,6 @@ export function Assumptions() {
           {[
             { author: 'Bruce M. S. Campbell', work: 'English Seigniorial Agriculture, 1250–1450', note: 'Yield estimates, seed rates, three‑field rotation.' },
             { author: 'Christopher Dyer', work: 'Standards of Living in the Later Middle Ages', note: 'Caloric requirements, ale consumption, dairy output.' },
-            { author: 'FAO', work: 'Energy Systems and Animal Nutrition manuals', note: 'Gross vs metabolizable feed energy and ruminant digestion factors.' },
-            { author: 'USDA', work: 'FoodData Central + grain standards', note: 'Modern proximate composition and bushel mass conversions used for unit transforms.' },
-            { author: 'Engineering Toolbox / legal cord definitions', work: 'Stacked wood volume standards', note: 'Cord-to-volume conversion basis for replacing vague cartloads.' },
             { author: 'Gregory Clark', work: 'The Long March of History', note: 'Labour calories and harvest variation.' },
             { author: 'John Munro', work: 'Medieval Woollens', note: 'Sheep fleece weights and cloth manufacture.' },
             { author: 'Stephen Broadberry et al.', work: 'British Economic Growth, 1270–1870', note: 'Tithe and tax burdens (~10–20 % of surplus).' },
@@ -88,10 +85,7 @@ export function Assumptions() {
       <Section icon={<Flame className="w-5 h-5" />} title="IV · Hearth & Fuel" tone="amber">
         <p>
           Cooking, brewing and surviving freezing nights all demand fuel — gathered as wood, peat, turf or dung from
-          the lord's common woodland. Fuel is measured in stacked volume (m³, i.e., stere), then converted to energy:
-          <span className="font-mono text-[var(--color-ink-500)]"> 1 m³ × 340 kg/m³ × 15,000 kJ/kg = 5.1 GJ gross</span>.
-          Only 45% is treated as usable household heat in a medieval hearth, so default useful heat is
-          <span className="font-mono text-[var(--color-ink-500)]"> ~2.3 GJ/m³</span>.
+          the lord's common woodland. A household burns about ½ a cartload per summer month and 1½ in winter.
         </p>
         <p className="mt-2 italic text-[var(--color-ink-300)]">
           When the wood pile fails, the body must heat itself with food: winter caloric needs rise by up to 30 % in
@@ -109,19 +103,7 @@ export function Assumptions() {
           <FactRow term="Seed grain" def="Strictly protected from consumption. Wheat: 2 bu/ac, barley: 2.5, oats: 4. The next year's harvest depends on it." />
           <FactRow term="Spoilage" def="Geometric decay in storage — 3 %/month for grain, 5 %/month for hay." />
           <FactRow term="Tithe & manufactures" def="Tithes (~10%) and non‑cloth manufactures (~5%) absorb a default 15 % of every grain and wool harvest." />
-          <FactRow term="Fuel unit" def="The simulator now uses stacked cubic metres instead of cartloads. For comparison: 1 cord ≈ 3.62 m³ stacked wood." />
-          <FactRow term="Fuel to heat" def="Gross wood energy is reduced by combustion and transfer losses; net usable household heat defaults to 45% of gross energy." />
           <FactRow term="Monte Carlo variability" def="Yields randomise yearly via Box–Muller normal distribution with default σ = 15%. The simulation runs 100 independent five‑year lives." />
-        </ul>
-      </Section>
-
-      <Section icon={<Wheat className="w-5 h-5" />} title="VI · Food, Fodder & Energy Accounting" tone="green">
-        <ul className="space-y-2 list-none">
-          <FactRow term="Mass conversion" def="All grains are convertible to weight using standard bushel masses (wheat 60 lb, barley 48 lb, oats 32 lb)." />
-          <FactRow term="Volume conversion" def="Plant foods (grain, hay, pulses where present) are convertible to volume and mass; meat and dairy remain mass/energy only due to product heterogeneity." />
-          <FactRow term="Animal energy classes" def="Feed energy is partitioned into ruminant-only (fibrous hay), animal-usable without processing (oats, screenings), and human-only pathways." />
-          <FactRow term="Human processing" def="Barley-to-ale applies a configurable processing loss (default 12% energy loss); 85% of processing residue is counted as animal-usable waste feed." />
-          <FactRow term="Human direct energy" def="Wheat and part of barley are convertible to direct human food energy without brewing; model tracks this separately from processed pathways." />
         </ul>
       </Section>
 
