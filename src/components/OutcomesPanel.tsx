@@ -10,9 +10,12 @@ interface Props {
 }
 
 export function OutcomesPanel({ results, params, isSimulating }: Props) {
+  const DAYS_PER_YEAR = 365;
+  const MONTHS_PER_YEAR = 12;
   const peopleTotal = params.households * (params.peoplePerHH.male + params.peoplePerHH.female + params.peoplePerHH.child);
   const dailyKcal = params.households * (params.kcalPerDay.male * params.peoplePerHH.male + params.kcalPerDay.female * params.peoplePerHH.female + params.kcalPerDay.child * params.peoplePerHH.child);
-  const yearlyKcal = dailyKcal * 365;
+  const yearlyKcal = dailyKcal * DAYS_PER_YEAR;
+  const monthlyKcal = yearlyKcal / MONTHS_PER_YEAR;
 
   const diet = useMemo(() => {
     const t = (results.diet.wheat + results.diet.barley + results.diet.oats + results.diet.dairy + results.diet.meat + results.diet.deficit) || 1;
@@ -78,7 +81,7 @@ export function OutcomesPanel({ results, params, isSimulating }: Props) {
           <RiskMeter
             label="Severe Famine"
             value={results.severeShortageObj * 100}
-            tooltip="Share of years with deficits exceeding 20% of monthly needs."
+            tooltip="Share of years with deficits exceeding 20% of one planning month of demand (annual demand ÷ 12)."
           />
           <RiskMeter
             label="Beast Loss"
@@ -100,7 +103,7 @@ export function OutcomesPanel({ results, params, isSimulating }: Props) {
           subtitle="Where each calorie of the village diet comes from"
           icon={<Wheat className="w-5 h-5" />}
           right={
-            <Tooltip text={`Total demand: ~${(yearlyKcal / 1e6).toFixed(1)}M kcal/year for ${Math.round(peopleTotal)} souls`}>
+            <Tooltip text={`Total demand: ~${(yearlyKcal / 1e6).toFixed(1)}M kcal/year (${Math.round(monthlyKcal).toLocaleString()} kcal per planning month = annual ÷ 12) for ${Math.round(peopleTotal)} souls`}>
               <span className="text-[0.68rem] text-[var(--color-ink-300)] cursor-help">
                 ~{(yearlyKcal / 1e6).toFixed(1)}M kcal/yr
               </span>

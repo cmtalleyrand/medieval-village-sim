@@ -115,7 +115,7 @@ export function CouncilPanel({ params, setParams }: Props) {
                   <Calculator className="w-3 h-3" /> Solve
                 </button>
               </Tooltip>
-              <Tooltip text="Reallocate fields automatically for survival.">
+              <Tooltip text="Reallocate fields for survival using the same 365-day year and 12 equal planning months as the simulator.">
                 <button onClick={handleAuto} className="btn-wood primary text-[0.6rem]">
                   <Sparkles className="w-3 h-3" /> Allot
                 </button>
@@ -169,7 +169,7 @@ export function CouncilPanel({ params, setParams }: Props) {
               };
               const tip: Record<string, string> = {
                 wheat: 'Primary bread grain. ~8 bu/ac. Highest kcal per bushel.',
-                barley: 'Brewed into ale (20% of daily kcal target). ~10 bu/ac.',
+                barley: 'Brewed into ale (~20% of monthly kcal demand under the 365/12 planning basis). ~10 bu/ac.',
                 oats: 'Animal feed first; emergency human food. ~10 bu/ac.',
                 hay: 'Cultivated meadow for winter livestock feed. ~1.2 tons/ac.',
               };
