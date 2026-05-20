@@ -121,7 +121,7 @@ export function Chronicle({ history, params }: ChronicleProps) {
             <StockJar label="Barley" value={cur.barley} unit="bu" color="#c46a1a" max={maxValues.barley} icon="🍺" />
             <StockJar label="Oats" value={cur.oats} unit="bu" color="#8fa848" max={maxValues.oats} icon="🐂" />
             <StockJar label="Hay" value={cur.hay} unit="tons" color="#5a7745" max={maxValues.hay} icon="🌿" />
-            <StockJar label="Fuel" value={cur.fuel} unit="carts" color="#6b4423" max={maxValues.fuel} icon="🪵" />
+            <StockJar label="Fuel" value={cur.fuel} unit="m³" color="#6b4423" max={maxValues.fuel} icon="🪵" />
             <StockJar label="Preserved Meat" value={cur.meatStock / 1000} unit="kkcal" color="#9b1c1c" max={maxValues.meat / 1000} icon="🥩" />
             <StockJar label="Cattle" value={cur.cattleCount} unit="head" color="#7a3a1c" max={maxValues.cattle} icon="🐄" />
             <StockJar label="Sheep" value={cur.sheep} unit="head" color="#8a7a60" max={maxValues.sheep} icon="🐑" />
@@ -298,7 +298,7 @@ export function Chronicle({ history, params }: ChronicleProps) {
                 ))}
                 <ReferenceLine x={cur.month} stroke="#9b1c1c" strokeWidth={1.5} strokeDasharray="2 3" />
                 <Legend wrapperStyle={{ fontFamily: 'Cinzel, serif', fontSize: 10, letterSpacing: 1.4, color: '#5e4222' }} iconType="square" />
-                <Area type="monotone" dataKey="fuel" name="Fuel (carts)" stroke="#4a2e10" fill="url(#gradFuel)" strokeWidth={2} />
+                <Area type="monotone" dataKey="fuel" name="Fuel (m³)" stroke="#4a2e10" fill="url(#gradFuel)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>

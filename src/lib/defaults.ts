@@ -25,9 +25,21 @@ export const DEFAULTS: SimParams = {
   woolPerSheep: 1.5, // lbs of wool per sheep per year
   clothingNeedWoolLbs: 1.5, // lbs of wool needed per person per year for basic garments
   woodlandAcres: 300, // Acres of woodland/commons for gathering fuel
-  fuelYieldPerAcre: 1.5, // Cartloads of fuel gathered per acre of woodland per year
-  fuelNeedsSummer: 0.5, // Cartloads of fuel per household per month (cooking)
-  fuelNeedsWinter: 1.5, // Cartloads of fuel per household per month (cooking + heating)
+  fuelYieldPerAcre: 1.8, // Stacked cubic meters (stere) gathered per acre of woodland per year
+  fuelNeedsSummer: 0.6, // Stacked m³ fuel per household per month (cooking)
+  fuelNeedsWinter: 1.8, // Stacked m³ fuel per household per month (cooking + heating)
+  fuelEnergy: {
+    woodDensityKgPerM3: 340, // Air-dry stacked mixed hardwood/softwood equivalent
+    grossKjPerKg: 15000, // Air-dry fuelwood NCV expressed in kJ/kg
+    netUsableHeatFraction: 0.45, // Open hearth + simple stove seasonal efficiency
+  },
+  foodEnergyModel: {
+    barleyProcessingLossPct: 12,
+    barleyProcessingWasteFeedShare: 0.85,
+    densitiesKgPerBu: { wheat: 27.2, barley: 21.8, oats: 14.5 },
+    energyKjPerKg: { wheat: 14300, barley: 14100, oats: 15600, hay: 16000 },
+    metabolizableKjPerKg: { oatsForRuminants: 10900, oatsForMonogastrics: 12400, hayForRuminants: 7400 },
+  },
   plannerRiskBufferPct: 5, // Planner-only reserve margin applied to annual needs
   bullsPerCow: 1 / 12, // Bulls required per cow
   pastureAcresPerSheep: 0.5, // Pasture acres per sheep

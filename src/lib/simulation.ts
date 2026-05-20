@@ -28,6 +28,18 @@ export interface SimParams {
   fuelYieldPerAcre: number;
   fuelNeedsSummer: number;
   fuelNeedsWinter: number;
+  fuelEnergy: {
+    woodDensityKgPerM3: number;
+    grossKjPerKg: number;
+    netUsableHeatFraction: number;
+  };
+  foodEnergyModel: {
+    barleyProcessingLossPct: number;
+    barleyProcessingWasteFeedShare: number;
+    densitiesKgPerBu: { wheat: number; barley: number; oats: number };
+    energyKjPerKg: { wheat: number; barley: number; oats: number; hay: number };
+    metabolizableKjPerKg: { oatsForRuminants: number; oatsForMonogastrics: number; hayForRuminants: number };
+  };
   plannerRiskBufferPct: number;
   bullsPerCow: number;
   pastureAcresPerSheep: number;
