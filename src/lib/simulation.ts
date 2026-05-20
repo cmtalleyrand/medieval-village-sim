@@ -879,8 +879,8 @@ export function solveMinimumAcres(params: SimParams): number {
   return Math.ceil(requiredTotalAcres / 10) * 10;
 }
 
-type PlannerMode = "min-total-land" | "fixed-total-land";
-interface PlannerReport {
+export type PlannerMode = "min-total-land" | "fixed-total-land";
+export interface PlannerReport {
   mode: PlannerMode;
   feasible: boolean;
   objectiveValue: number;

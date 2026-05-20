@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Castle, Wheat, Trees, Settings2, ChevronDown, ChevronRight, Sparkles, Calculator, Users, Sprout, Beef, Flame, Lock, Unlock } from 'lucide-react';
 import { Card, CardHeader, Fleuron, Tooltip, IconButton } from './ui';
-import { SimParams, autoAllocateLand, solveLandForRiskTarget, solveMinimumAcres } from '../lib/simulation';
+import { SimParams, autoAllocateLand, solveLandForRiskTarget, solveMinimumAcres, planVillageResources } from '../lib/simulation';
 
 interface Props {
   params: SimParams;
@@ -117,7 +117,7 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
     sheepClothing: 'Wool',
     totalLand: 'Total land',
   };
-  const bindingConstraints = Object.entries(plannerReport.slacks)
+  const bindingConstraints = Object.entries(plannerReport.slacks as Record<string, number>)
     .map(([key, slack]) => ({ key, slack, magnitude: Math.abs(slack) }))
     .sort((a, b) => a.magnitude - b.magnitude)
     .slice(0, 4);
