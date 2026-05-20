@@ -83,9 +83,32 @@ export interface SimResult {
   diet: HumanDiet;
 }
 
-interface Cattle {
-    type: 'bull' | 'cow' | 'ox';
-    ageMonths: number;
+type CattleType = 'bull' | 'cow' | 'ox';
+type AgeBand = 'calf' | 'subadult' | 'adult' | 'old';
+
+type CattleCounts = Record<CattleType, Record<AgeBand, number>>;
+
+const AGE_BANDS: AgeBand[] = ['calf', 'subadult', 'adult', 'old'];
+const CATTLE_TYPES: CattleType[] = ['bull', 'cow', 'ox'];
+
+function makeEmptyCattleCounts(): CattleCounts {
+  return {
+    bull: { calf: 0, subadult: 0, adult: 0, old: 0 },
+    cow: { calf: 0, subadult: 0, adult: 0, old: 0 },
+    ox: { calf: 0, subadult: 0, adult: 0, old: 0 }
+  };
+}
+
+function sampleBinomial(trials: number, p: number): number {
+  let hits = 0;
+  for (let i = 0; i < trials; i++) if (Math.random() < p) hits++;
+  return hits;
+}
+
+function totalCattle(herd: CattleCounts): number {
+  let total = 0;
+  for (const type of CATTLE_TYPES) for (const band of AGE_BANDS) total += herd[type][band];
+  return total;
 }
 
 export function randomizeYield(base: number, variabilityPct: number) {
@@ -135,17 +158,23 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
     let meatStocks = 0;
     let fuelStocks = params.woodlandAcres * params.fuelYieldPerAcre;
 
-    let herd: Cattle[] = [];
-    herd.push({ type: 'bull', ageMonths: 48 });
-    herd.push({ type: 'bull', ageMonths: 72 });
-    for(let j=0; j<totalCows; j++) herd.push({ type: 'cow', ageMonths: 36 + Math.floor(Math.random() * 70) });
-    for(let j=0; j<totalOxen; j++) herd.push({ type: 'ox', ageMonths: 36 + Math.floor(Math.random() * 70) });
-    
+    let herd = makeEmptyCattleCounts();
+    herd.bull.adult = 2;
+    for (let j = 0; j < totalCows; j++) {
+      const age = 36 + Math.floor(Math.random() * 70);
+      herd.cow[age >= 96 ? 'old' : 'adult']++;
+    }
+    for (let j = 0; j < totalOxen; j++) {
+      const age = 36 + Math.floor(Math.random() * 70);
+      herd.ox[age >= 96 ? 'old' : 'adult']++;
+    }
+
     const neededCowsPerYear = Math.ceil(totalCows / 6);
     const neededOxenPerYear = Math.ceil(totalOxen / 6);
-    for(let ageYears = 0; ageYears < 3; ageYears++) { 
-        for(let j = 0; j < neededCowsPerYear; j++) herd.push({ type: 'cow', ageMonths: ageYears * 12 + 6 });
-        for(let j = 0; j < neededOxenPerYear; j++) herd.push({ type: 'ox', ageMonths: ageYears * 12 + 6 });
+    for (let ageYears = 0; ageYears < 3; ageYears++) {
+      const band: AgeBand = ageYears === 0 ? 'calf' : 'subadult';
+      for (let j = 0; j < neededCowsPerYear; j++) herd.cow[band]++;
+      for (let j = 0; j < neededOxenPerYear; j++) herd.ox[band]++;
     }
     
     let hadShortage = false;
@@ -178,8 +207,20 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         let fSeed = 0;
         let woolThisMonth = 0;
         
-        // Age the herd
-        herd.forEach(c => c.ageMonths++);
+        // Advance cattle ages by bucket transitions (monthly hazard within each age band)
+        for (const type of CATTLE_TYPES) {
+          const calfToSubadult = sampleBinomial(herd[type].calf, 1 / 12);
+          herd[type].calf -= calfToSubadult;
+          herd[type].subadult += calfToSubadult;
+
+          const subadultToAdult = sampleBinomial(herd[type].subadult, 1 / 24);
+          herd[type].subadult -= subadultToAdult;
+          herd[type].adult += subadultToAdult;
+
+          const adultToOld = sampleBinomial(herd[type].adult, 1 / 60);
+          herd[type].adult -= adultToOld;
+          herd[type].old += adultToOld;
+        }
 
         // Spring reproduction (Month 1 is beginning of spring)
         if (month === 1) {
@@ -187,15 +228,12 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             currentSheep += Math.floor(currentSheep * 0.3); // 30% survival of lambing
 
             // Cattle reproduction
-            let newCalves: Cattle[] = [];
-            herd.forEach(c => {
-                if (c.type === 'cow' && c.ageMonths >= 36) {
-                     if (Math.random() < 0.8) { // 80% calving rate
-                         newCalves.push({ type: Math.random() < 0.5 ? 'ox' : 'cow', ageMonths: 0 }); 
-                     }
-                }
-            });
-            herd = herd.concat(newCalves);
+            const fertileCows = herd.cow.adult + herd.cow.old;
+            const calvesBorn = sampleBinomial(fertileCows, 0.8);
+            const oxCalves = sampleBinomial(calvesBorn, 0.5);
+            const cowCalves = calvesBorn - oxCalves;
+            herd.ox.calf += oxCalves;
+            herd.cow.calf += cowCalves;
         }
 
         // Sheep shearing (Early summer, Month 3)
@@ -245,37 +283,16 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
               meatStocks += surplusSheep * params.production.sheepMeatKcal;
           }
 
-          const survivingHerd: Cattle[] = [];
-          let culledOld = 0;
-          for (const c of herd) {
-              // Cull cattle that will have less than 6 months of work left by next spring
-              // Maximum lifespan is 120 months (10 years)
-              if (c.ageMonths + params.winterMonths + 6 > 120) {
-                  culledOld++;
-              } else {
-                  survivingHerd.push(c);
-              }
-          }
-          herd = survivingHerd;
+          const culledOld = herd.bull.old + herd.cow.old + herd.ox.old;
+          herd.bull.old = 0;
+          herd.cow.old = 0;
+          herd.ox.old = 0;
 
-          let calvesCow = 0, calvesOx = 0, culledCalves = 0;
-          const postCullHerd: Cattle[] = [];
-          for (const c of herd) {
-              if (c.ageMonths <= 12) {
-                  if (c.type === 'cow') {
-                      if (calvesCow < neededCowsPerYear) { calvesCow++; postCullHerd.push(c); }
-                      else culledCalves++;
-                  } else if (c.type === 'ox') {
-                      if (calvesOx < neededOxenPerYear) { calvesOx++; postCullHerd.push(c); }
-                      else culledCalves++;
-                  } else {
-                      postCullHerd.push(c); // Keep subadult bulls
-                  }
-              } else {
-                  postCullHerd.push(c);
-              }
-          }
-          herd = postCullHerd;
+          const extraCowCalves = Math.max(0, herd.cow.calf - neededCowsPerYear);
+          const extraOxCalves = Math.max(0, herd.ox.calf - neededOxenPerYear);
+          const culledCalves = extraCowCalves + extraOxCalves;
+          herd.cow.calf -= extraCowCalves;
+          herd.ox.calf -= extraOxCalves;
           
           meatStocks += (culledOld * params.production.cattleMeatAdult) + (culledCalves * params.production.cattleMeatCalf);
         }
@@ -304,13 +321,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         }
 
         // Humans consume dairy
-        let cowDairy = 0;
-        herd.forEach(c => {
-            if (c.type === 'cow') {
-                if (c.ageMonths >= 48) cowDairy += params.production.cowDairyKcal; // fully productive
-                else if (c.ageMonths >= 36) cowDairy += (params.production.cowDairyKcal * 0.5); // half productive
-            }
-        });
+        const cowDairy = (herd.cow.old + herd.cow.adult) * params.production.cowDairyKcal
+          + (herd.cow.subadult * params.production.cowDairyKcal * 0.5);
         
         let sheepDairy = (currentSheep * 0.5) * params.production.sheepDairyKcal; // Assuming ~50% are ewes
         let dairyKcal = cowDairy + sheepDairy; 
@@ -427,25 +439,19 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
 
         if (isSeedPlanting) {
             // Active oxen need some oats for spring planting
-            let activeOxen = 0;
-            herd.forEach(c => { if ((c.type === 'ox' || c.type === 'bull') && c.ageMonths >= 36) activeOxen++; });
+            const activeOxen = herd.ox.adult + herd.ox.old + herd.bull.adult + herd.bull.old;
             oatsNeeded += activeOxen * (params.feedNeedsWinter.oxenOats / 2);
         }
 
         if (isWinter) {
-            herd.forEach(c => {
-                let multiplier = 1;
-                if (c.ageMonths <= 12) multiplier = 0.2;
-                else if (c.ageMonths < 36) multiplier = 0.5;
-
-                if (c.type === 'ox' || c.type === 'bull') {
-                    hayNeeded += params.feedNeedsWinter.oxenHay * multiplier;
-                    oatsNeeded += params.feedNeedsWinter.oxenOats * multiplier;
-                } else if (c.type === 'cow') {
-                    hayNeeded += params.feedNeedsWinter.cowHay * multiplier;
-                    oatsNeeded += params.feedNeedsWinter.cowOats * multiplier;
-                }
-            });
+            const calfMultiplier = 0.2;
+            const subadultMultiplier = 0.5;
+            const adultMultiplier = 1;
+            const oxenLike = herd.ox.calf * calfMultiplier + herd.ox.subadult * subadultMultiplier + (herd.ox.adult + herd.ox.old) * adultMultiplier
+              + herd.bull.calf * calfMultiplier + herd.bull.subadult * subadultMultiplier + (herd.bull.adult + herd.bull.old) * adultMultiplier;
+            const cows = herd.cow.calf * calfMultiplier + herd.cow.subadult * subadultMultiplier + (herd.cow.adult + herd.cow.old) * adultMultiplier;
+            hayNeeded += params.feedNeedsWinter.oxenHay * oxenLike + params.feedNeedsWinter.cowHay * cows;
+            oatsNeeded += params.feedNeedsWinter.oxenOats * oxenLike + params.feedNeedsWinter.cowOats * cows;
 
             // Sheep
             if (winterMonthIndex > 3 && winterMonthIndex <= 6) {
@@ -484,9 +490,15 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
           animalDeath = true; // Feed shortage = animal deaths
           
           if (shortage > 0) {
-              const cattleDying = Math.min(herd.length, Math.ceil(shortage / params.feedNeedsWinter.cowOats));
-              for(let k=0; k<cattleDying; k++) {
-                  if (herd.length > 0) herd.pop(); // Randomly kill a cattle
+              const cattleDying = Math.min(totalCattle(herd), Math.ceil(shortage / params.feedNeedsWinter.cowOats));
+              let remainingDeaths = cattleDying;
+              for (const band of ['old', 'adult', 'subadult', 'calf'] as AgeBand[]) {
+                for (const type of ['ox', 'cow', 'bull'] as CattleType[]) {
+                  if (remainingDeaths <= 0) break;
+                  const take = Math.min(herd[type][band], remainingDeaths);
+                  herd[type][band] -= take;
+                  remainingDeaths -= take;
+                }
               }
           }
           currentSheep = Math.max(0, currentSheep - 2); // Cull remaining sheep to 'buy' feed for plow teams
@@ -525,7 +537,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             seedCol: Math.round(fSeed),
             spoilCol: Math.round(fSpoil),
             sheep: currentSheep,
-            cattleCount: herd.length,
+            cattleCount: totalCattle(herd),
             wool: Math.round(woolThisMonth),
             meatStock: Math.round(meatStocks),
             deficit: Math.round(kcalNeeded)
