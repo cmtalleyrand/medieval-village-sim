@@ -502,6 +502,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         let oatsNeeded = 0;
         let hayNeeded = 0;
         let sheepHayNeeded = 0;
+        let cattleHayNeeded = 0;
 
         if (isSeedPlanting) {
             // Active oxen need some oats for spring planting
@@ -517,10 +518,14 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
                 else if (c.ageMonths < 36) multiplier = 0.5;
 
                 if (c.type === 'ox' || c.type === 'bull') {
-                    hayNeeded += params.feedNeedsWinter.oxenHay * multiplier;
+                    const oxHay = params.feedNeedsWinter.oxenHay * multiplier;
+                    hayNeeded += oxHay;
+                    cattleHayNeeded += oxHay;
                     oatsNeeded += params.feedNeedsWinter.oxenOats * multiplier;
                 } else if (c.type === 'cow') {
-                    hayNeeded += params.feedNeedsWinter.cowHay * multiplier;
+                    const cowHay = params.feedNeedsWinter.cowHay * multiplier;
+                    hayNeeded += cowHay;
+                    cattleHayNeeded += cowHay;
                     oatsNeeded += params.feedNeedsWinter.cowOats * multiplier;
                 }
             });
@@ -552,7 +557,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
               animalDeath = true;
           }
           
-          oatsNeeded += hayShortfall * 10; // rough conversion: 1 ton hay = 10 bu oats replacement for cattle
+          const cattleHayShortfall = Math.min(hayShortfall, cattleHayNeeded);
+          oatsNeeded += cattleHayShortfall * 10; // rough conversion: 1 ton hay = 10 bu oats replacement for cattle
         }
 
         if (oatStocks >= oatsNeeded) {
