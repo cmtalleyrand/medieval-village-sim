@@ -11,11 +11,22 @@ interface Props {
 export function CouncilPanel({ params, setParams }: Props) {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const setField = (k: keyof SimParams, v: any) =>
+  type NumericFieldKeys = {
+    [K in keyof SimParams]: SimParams[K] extends number ? K : never;
+  }[keyof SimParams];
+  type NumericNestedKeys = {
+    [K in keyof SimParams]: SimParams[K] extends Record<string, number> ? K : never;
+  }[keyof SimParams];
+
+  const setField = <K extends NumericFieldKeys>(k: K, v: SimParams[K]) =>
     setParams(prev => ({ ...prev, [k]: v }));
 
-  const setNested = (cat: keyof SimParams, key: string, v: number) =>
-    setParams(prev => ({ ...prev, [cat]: { ...(prev[cat] as any), [key]: v } }));
+  const setNested = <K extends NumericNestedKeys, P extends keyof SimParams[K]>(
+    cat: K,
+    key: P,
+    v: SimParams[K][P]
+  ) =>
+    setParams(prev => ({ ...prev, [cat]: { ...prev[cat], [key]: v } }));
 
   const setLandSplit = (crop: 'wheat' | 'barley' | 'oats' | 'hay', value: number) => {
     setParams(prev => {
@@ -34,18 +45,18 @@ export function CouncilPanel({ params, setParams }: Props) {
   };
 
   const handleAuto = () => {
-    setParams(prev => ({ ...prev, landSplit: autoAllocateLand(prev) as any }));
+    setParams(prev => ({ ...prev, landSplit: autoAllocateLand(prev) }));
   };
 
   const handleSolveAcres = () => {
     setParams(prev => {
       const min = solveMinimumAcres(prev);
       const np = { ...prev, totalAcres: min };
-      return { ...np, landSplit: autoAllocateLand(np) as any };
+      return { ...np, landSplit: autoAllocateLand(np) };
     });
   };
 
-  const activeAcres = Math.round(params.totalAcres * (2 / 3));
+  const activeAcres = Math.round(params.totalAcres * (1 - params.fallowPct / 100));
   const fallowAcres = params.totalAcres - activeAcres;
   const totalSplit = Math.round(params.landSplit.wheat + params.landSplit.barley + params.landSplit.oats + params.landSplit.hay);
 

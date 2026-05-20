@@ -5,6 +5,7 @@ export interface SimParams {
   growingMonths: number;
   winterMonths: number;
   totalAcres: number;
+  fallowPct: number;
   landSplit: {
     wheat: number;
     barley: number;
@@ -121,7 +122,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   const totalCows = params.households * params.animalsPerHH.cows;
   const initialSheep = params.households * params.animalsPerHH.sheep;
 
-  const activeAcres = params.totalAcres * (2/3); // 1/3 fallow
+  const activeAcres = params.totalAcres * (1 - params.fallowPct / 100);
   const YEARS_PER_ITERATION = 5;
   const HARVEST_CYCLE = params.growingMonths; // Harvest occurs at the end of the growing season
   
@@ -557,8 +558,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   };
 }
 
-export function autoAllocateLand(params: SimParams): Partial<SimParams["landSplit"]> {
-  const activeAcres = params.totalAcres * (1 - DEFAULTS.fallowPct / 100);
+export function autoAllocateLand(params: SimParams): SimParams["landSplit"] {
+  const activeAcres = params.totalAcres * (1 - params.fallowPct / 100);
   
   const dailyKcalReq = params.households * (params.kcalPerDay.male * params.peoplePerHH.male + params.kcalPerDay.female * params.peoplePerHH.female + params.kcalPerDay.child * params.peoplePerHH.child);
   const yearlyKcalReq = dailyKcalReq * 365;
@@ -684,7 +685,7 @@ export function solveMinimumAcres(params: SimParams): number {
   const activeAcres = oatAcres + hayAcres + totalWheatNeeded * 1.15;
   
   // Required total acres accounts for fallow land
-  const requiredTotalAcres = activeAcres / (1 - DEFAULTS.fallowPct / 100);
+  const requiredTotalAcres = activeAcres / (1 - params.fallowPct / 100);
   
   return Math.ceil(requiredTotalAcres / 10) * 10;
 }
