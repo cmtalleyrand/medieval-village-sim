@@ -96,14 +96,15 @@ export function Assumptions() {
       <Section icon={<Wheat className="w-5 h-5" />} title="V · The Furrows" tone="orange">
         <ul className="space-y-2 list-none">
           <FactRow term="Three‑field rotation" def="One third of all arable lies fallow each year. The remaining 'active acres' are split between wheat, barley, oats and cultivated hay-meadow." />
-          <FactRow term="Wheat" def="~8 bu/ac at 60 lbs and 1500 kcal/lb — the bread grain." />
-          <FactRow term="Barley" def="~10 bu/ac — brewed into ale that supplies the village's daily ration of liquid calories (~20 % of intake)." />
-          <FactRow term="Oats" def="~10 bu/ac — primary animal feed; a humble human fallback in famine." />
-          <FactRow term="Hay" def="~1.2 tons/ac — cut from meadow strictly for winter feed." />
-          <FactRow term="Seed grain" def="Strictly protected from consumption. Wheat: 2 bu/ac, barley: 2.5, oats: 4. The next year's harvest depends on it." />
+          <FactRow term="Wheat" def="10 bu/ac gross, with 2.5 bu/ac reserved as seed for the next cycle." />
+          <FactRow term="Barley" def="12 bu/ac gross, with 4 bu/ac seed; remaining grain supports ale and bread." />
+          <FactRow term="Oats" def="12 bu/ac gross, with 4 bu/ac seed; primary feed grain and famine fallback." />
+          <FactRow term="Hay" def="~1.2 tons/ac, still the primary winter ration backbone for cattle and sheep. Oats now shift upward with winter length: 1 bu/head/month for the first three winter months, then 2 bu/head/month thereafter." />
+          <FactRow term="Seed grain" def="Strictly protected from consumption. Wheat: 2.5 bu/ac, barley: 4, oats: 4. The next year's harvest depends on it." />
           <FactRow term="Spoilage" def="Geometric decay in storage — 3 %/month for grain, 5 %/month for hay." />
           <FactRow term="Tithe & manufactures" def="Tithes (~10%) and non‑cloth manufactures (~5%) absorb a default 15 % of every grain and wool harvest." />
           <FactRow term="Monte Carlo variability" def="Yields randomise yearly via Box–Muller normal distribution with default σ = 15%. The simulation runs 100 independent five‑year lives." />
+          <FactRow term="Source-alignment notes" def="Pulses remain intentionally out of scope. Primary reporting uses physical units (bushels/tons/lbs/gallons/yards). Straw option (not yet implemented): derive straw from cereal harvest (e.g., fixed tons-per-bushel factors by grain), apply higher spoilage and lower feed energy than hay, and consume straw after hay but before emergency oat substitution." />
         </ul>
       </Section>
 

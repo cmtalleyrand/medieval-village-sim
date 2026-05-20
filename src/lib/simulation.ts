@@ -114,6 +114,14 @@ export interface ConversionAudit {
     dairy: FoodPathwayAudit;
     meat: FoodPathwayAudit;
   };
+  physicalOutputs: {
+    grainBushels: { wheat: number; barley: number; oats: number };
+    hayTons: number;
+    woolLbs: number;
+    clothYards: number;
+    milkGallons: { cow: number; ewe: number };
+    meatLbs: { cattleAdult: number; calf: number; sheep: number };
+  };
 }
 export interface HumanDiet {
   wheat: number;
@@ -218,6 +226,13 @@ function buildConversionAudit(params: SimParams): ConversionAudit {
   const barleyKg = barleyBu * params.foodEnergyModel.densitiesKgPerBu.barley;
   const oatsKg = oatsBu * params.foodEnergyModel.densitiesKgPerBu.oats;
   const hayKg = hayTons * 907.18474;
+  const people = params.households * (params.peoplePerHH.male + params.peoplePerHH.female + params.peoplePerHH.child);
+  const woolLbs = params.households * params.animalsPerHH.sheep * params.woolPerSheep * ((100 - params.titheAndManufacturePct) / 100);
+  const clothYards = woolLbs / 3;
+  const cowGallonsPerYear = 100;
+  const eweGallonsPerMonthInSeason = 1;
+  const eweSeasonMonths = Math.max(0, params.growingMonths - 4);
+  const eweCount = params.households * params.animalsPerHH.sheep * 0.5;
 
   const barleyGross = barleyKg * params.foodEnergyModel.energyKjPerKg.barley;
   const barleyProcessed = barleyGross * (1 - params.foodEnergyModel.barleyProcessingLossPct / 100);
@@ -243,8 +258,16 @@ function buildConversionAudit(params: SimParams): ConversionAudit {
       barley: { volumeM3: null, weightKg: barleyKg, energy: { ruminantOnlyKj: 0, animalDirectKj: 0, humanProcessedKj: barleyProcessed, processingWasteAnimalKj: barleyWaste, humanDirectKj: barleyGross * 0.25 } },
       oats: { volumeM3: null, weightKg: oatsKg, energy: { ruminantOnlyKj: 0, animalDirectKj: oatsKg * params.foodEnergyModel.metabolizableKjPerKg.oatsForMonogastrics, humanProcessedKj: 0, processingWasteAnimalKj: 0, humanDirectKj: oatsKg * params.foodEnergyModel.energyKjPerKg.oats } },
       hay: { volumeM3: null, weightKg: hayKg, energy: { ruminantOnlyKj: hayKg * params.foodEnergyModel.metabolizableKjPerKg.hayForRuminants, animalDirectKj: 0, humanProcessedKj: 0, processingWasteAnimalKj: 0, humanDirectKj: 0 } },
-      dairy: { volumeM3: null, weightKg: 0, energy: { ruminantOnlyKj: 0, animalDirectKj: 0, humanProcessedKj: 0, processingWasteAnimalKj: 0, humanDirectKj: params.households * params.animalsPerHH.cows * params.production.cowDairyKcal * 12 * 4.184 } },
-      meat: { volumeM3: null, weightKg: 0, energy: { ruminantOnlyKj: 0, animalDirectKj: 0, humanProcessedKj: 0, processingWasteAnimalKj: 0, humanDirectKj: (params.households * params.animalsPerHH.sheep * params.production.sheepMeatKcal) * 4.184 } },
+      dairy: { volumeM3: null, weightKg: (params.households * params.animalsPerHH.cows * cowGallonsPerYear + eweCount * eweSeasonMonths * eweGallonsPerMonthInSeason) * 3.9, energy: { ruminantOnlyKj: 0, animalDirectKj: 0, humanProcessedKj: 0, processingWasteAnimalKj: 0, humanDirectKj: params.households * params.animalsPerHH.cows * params.production.cowDairyKcal * 12 * 4.184 } },
+      meat: { volumeM3: null, weightKg: ((params.households * params.animalsPerHH.cows * 0.15 * 180) + (params.households * params.animalsPerHH.cows * 0.12 * 30) + (params.households * params.animalsPerHH.sheep * 0.10 * 20)) * 0.453592, energy: { ruminantOnlyKj: 0, animalDirectKj: 0, humanProcessedKj: 0, processingWasteAnimalKj: 0, humanDirectKj: (params.households * params.animalsPerHH.sheep * params.production.sheepMeatKcal) * 4.184 } },
+    },
+    physicalOutputs: {
+      grainBushels: { wheat: wheatBu, barley: barleyBu, oats: oatsBu },
+      hayTons,
+      woolLbs,
+      clothYards,
+      milkGallons: { cow: params.households * params.animalsPerHH.cows * cowGallonsPerYear, ewe: eweCount * eweSeasonMonths * eweGallonsPerMonthInSeason },
+      meatLbs: { cattleAdult: params.households * params.animalsPerHH.cows * 0.15 * 180, calf: params.households * params.animalsPerHH.cows * 0.12 * 30, sheep: params.households * params.animalsPerHH.sheep * 0.10 * 20 },
     },
   };
 }
@@ -279,8 +302,6 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   const bAcresConst = activeAcres * (params.landSplit.barley / 100);
   const oAcresConst = activeAcres * (params.landSplit.oats / 100);
   const hAcresConst = activeAcres * (params.landSplit.hay / 100);
-  const cattleOatsPerMonth = totalOxen * params.feedNeedsWinter.oxenOats + totalCows * params.feedNeedsWinter.cowOats;
-  const cattleHayPerMonth = totalOxen * params.feedNeedsWinter.oxenHay + totalCows * params.feedNeedsWinter.cowHay;
   // Seed reserves needed each spring
   const seedWheat = wAcresConst * params.cropStats.wheat.seedRate;
   const seedBarley = bAcresConst * params.cropStats.barley.seedRate;
@@ -345,6 +366,11 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
       const bYield = randomizeCorrelatedYield(params.yields.barley, params.yieldVariability, climateShock, BARLEY_CLIMATE_SENSITIVITY);
       const oYield = randomizeCorrelatedYield(params.yields.oats, params.yieldVariability, climateShock, OATS_CLIMATE_SENSITIVITY);
       const hYield = randomizeYield(params.yields.hay, params.yieldVariability);
+      const oxenRequirement = Math.ceil((params.totalAcres / 100) * 10);
+      const oxenDeficit = Math.max(0, oxenRequirement - totalOxen);
+      const unplowedAcres = Math.min(activeAcres, oxenDeficit * 10);
+      const unplowedShare = activeAcres > 0 ? unplowedAcres / activeAcres : 0;
+      const tractionYieldFactor = 1 - (0.25 * unplowedShare);
       const wAcres = wAcresConst;
       const bAcres = bAcresConst;
       const oAcres = oAcresConst;
@@ -418,10 +444,10 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         if (growingMonth > 0 && (cycleMonth === CROP_MATURATION_MONTHS || growingMonth === params.growingMonths)) {
             const cycleProgress = cycleMonth === CROP_MATURATION_MONTHS ? 1 : cycleMonth / CROP_MATURATION_MONTHS;
 
-            wheatStocks += (wAcres * wYield * cycleProgress) * titheFactor;
-            barleyStocks += (bAcres * bYield * cycleProgress) * titheFactor;
-            oatStocks += (oAcres * oYield * cycleProgress) * titheFactor;
-            hayStocks += (hAcres * hYield * cycleProgress);
+            wheatStocks += (wAcres * wYield * cycleProgress * tractionYieldFactor) * titheFactor;
+            barleyStocks += (bAcres * bYield * cycleProgress * tractionYieldFactor) * titheFactor;
+            oatStocks += (oAcres * oYield * cycleProgress * tractionYieldFactor) * titheFactor;
+            hayStocks += (hAcres * hYield * cycleProgress * tractionYieldFactor);
         }
         
         if (isSeedPlanting) {
@@ -509,7 +535,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             }
         });
         
-        let sheepDairy = (currentSheep * 0.5) * params.production.sheepDairyKcal; // Assuming ~50% are ewes
+        const isEweMilkSeason = !isWinter && month >= 2 && month <= Math.max(2, params.growingMonths - 3);
+        let sheepDairy = isEweMilkSeason ? (currentSheep * 0.5) * params.production.sheepDairyKcal : 0;
         let dairyKcal = cowDairy + sheepDairy; 
         if (isWinter) dairyKcal = dairyKcal * WINTER_DAIRY_OUTPUT_FACTOR; // 65% drop in winter dairy production
         dietAgg.dairy += dairyKcal;
@@ -642,16 +669,16 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
                     const oxHay = params.feedNeedsWinter.oxenHay * multiplier;
                     hayNeeded += oxHay;
                     cattleHayNeeded += oxHay;
-                    oatsNeeded += params.feedNeedsWinter.oxenOats * multiplier;
+                    const matureOatsRate = winterMonthIndex <= 3 ? 1 : 2;
+                    oatsNeeded += matureOatsRate * multiplier;
                 } else if (c.type === 'cow') {
                     const cowHay = params.feedNeedsWinter.cowHay * multiplier;
                     hayNeeded += cowHay;
                     cattleHayNeeded += cowHay;
-                    oatsNeeded += params.feedNeedsWinter.cowOats * multiplier;
+                    const matureOatsRate = winterMonthIndex <= 3 ? 1 : 2;
+                    oatsNeeded += matureOatsRate * multiplier;
                 }
             });
-
-            // Sheep
             if (winterMonthIndex > 3 && winterMonthIndex <= 6) {
                 sheepHayNeeded = currentSheep * (params.feedNeedsWinter.sheepHay / 2);
             } else if (winterMonthIndex > 6) {
@@ -659,8 +686,6 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             }
             hayNeeded += sheepHayNeeded;
         }
-
-        // Deduct feed, preferring hay. If hay runs out, cows/oxen switch strictly to oats
         if (hayStocks >= hayNeeded) {
           hayStocks -= hayNeeded;
           fAHay += hayNeeded;
@@ -668,18 +693,14 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
           fAHay += hayStocks;
           const hayShortfall = hayNeeded - hayStocks;
           hayStocks = 0;
-          
-          // If hay runs out, only sheep-specific hay shortfall causes sheep deaths.
-          // Cattle hay shortfalls are handled via oats substitution below.
           const sheepHayShortfall = Math.min(hayShortfall, sheepHayNeeded);
           if (sheepHayShortfall > 0 && currentSheep > 0) {
-              const sheepDying = Math.min(currentSheep, Math.ceil(sheepHayShortfall / params.feedNeedsWinter.sheepHay));
+              const sheepDying = Math.min(currentSheep, Math.ceil(sheepHayShortfall / Math.max(0.000001, params.feedNeedsWinter.sheepHay)));
               currentSheep -= sheepDying;
               animalDeath = true;
           }
-          
           const cattleHayShortfall = Math.min(hayShortfall, cattleHayNeeded);
-          oatsNeeded += cattleHayShortfall * 10; // rough conversion: 1 ton hay = 10 bu oats replacement for cattle
+          oatsNeeded += cattleHayShortfall * 10;
         }
 
         if (oatStocks >= oatsNeeded) {
@@ -932,7 +953,9 @@ export function planVillageResources(params: SimParams, mode: PlannerMode = "min
   const dairyMonthsEquivalent = getDairyMonthsEquivalent(params.winterMonths);
   const animalKcal = (cows * params.production.cowDairyKcal + (sheep * 0.5) * params.production.sheepDairyKcal) * dairyMonthsEquivalent + (sheep * 0.1 * params.production.sheepMeatKcal);
   const cropKcalNeed = Math.max(0, kcalNeed - animalKcal);
-  const oatsFeedNeed = ((oxen * params.feedNeedsWinter.oxenOats) + (cows * params.feedNeedsWinter.cowOats)) * params.winterMonths * riskFactor;
+  const earlyWinterMonths = Math.min(3, params.winterMonths);
+  const lateWinterMonths = Math.max(0, params.winterMonths - 3);
+  const oatsFeedNeed = ((oxen + cows) * earlyWinterMonths + (oxen + cows) * 2 * lateWinterMonths) * riskFactor;
   const hayFeedNeed = ((oxen * params.feedNeedsWinter.oxenHay) + (cows * params.feedNeedsWinter.cowHay) + (sheep * params.feedNeedsWinter.sheepHay)) * params.winterMonths * riskFactor;
   const barleyShareTarget = 0.10;
   const w = wheatKcalPerAcre;
