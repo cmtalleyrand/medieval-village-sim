@@ -163,23 +163,14 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   const seedWheat = wAcresConst * params.cropStats.wheat.seedRate;
   const seedBarley = bAcresConst * params.cropStats.barley.seedRate;
   const seedOats = oAcresConst * params.cropStats.oats.seedRate;
-  // Initial stocks represent the post-winter carry-over from a typical prior season.
-  // A long growing season contains multiple 8-month crop cycles, so total yield scales
-  // with harvestsPerSeason (e.g. a 36-month summer produces ~4.5 cycles of harvest).
-  const harvestsPerSeason = Math.floor(params.growingMonths / CROP_MATURATION_MONTHS)
-    + (params.growingMonths % CROP_MATURATION_MONTHS) / CROP_MATURATION_MONTHS;
-
-  const priorWheatYield  = wAcresConst * params.yields.wheat  * titheFactor * harvestsPerSeason;
-  const priorBarleyYield = bAcresConst * params.yields.barley * titheFactor * harvestsPerSeason;
-  const priorOatYield    = oAcresConst * params.yields.oats   * titheFactor * harvestsPerSeason;
-  const priorHayYield    = hAcresConst * params.yields.hay                  * harvestsPerSeason;
-  const priorFuelYield   = params.woodlandAcres * params.fuelYieldPerAcre   * harvestsPerSeason;
-
-  const initWheatStocks  = Math.max(seedWheat,  priorWheatYield  - monthlyKcalReq * 0.50 * params.winterMonths / params.cropStats.wheat.kcalPerBu  + seedWheat);
-  const initBarleyStocks = Math.max(seedBarley, priorBarleyYield - monthlyKcalReq * 0.15 * params.winterMonths / params.cropStats.barley.kcalPerBu + seedBarley);
-  const initOatStocks    = Math.max(seedOats + cattleOatsPerMonth, priorOatYield - cattleOatsPerMonth * params.winterMonths + seedOats);
-  const initHayStocks    = Math.max(cattleHayPerMonth, priorHayYield - cattleHayPerMonth * params.winterMonths);
-  const initFuelStocks   = Math.max(0, priorFuelYield - params.households * (params.fuelNeedsWinter * params.winterMonths + params.fuelNeedsSummer * params.growingMonths));
+  // Initial stocks: enough to bridge from the start of the growing season to the first harvest,
+  // plus seed corn. Animals graze freely during the growing season so no hay or oat reserves
+  // are needed until winter arrives after that first harvest.
+  const initWheatStocks  = monthlyKcalReq * firstHarvestMonth / params.cropStats.wheat.kcalPerBu + seedWheat;
+  const initBarleyStocks = monthlyKcalReq * firstHarvestMonth * 0.20 / params.cropStats.barley.kcalPerBu + seedBarley;
+  const initOatStocks    = seedOats + totalOxen * (params.feedNeedsWinter.oxenOats / 2); // seed + spring plowing draw
+  const initHayStocks    = 0;
+  const initFuelStocks   = params.households * params.fuelNeedsSummer * firstHarvestMonth;
 
   for (let i = 0; i < iterations; i++) {
     let wheatStocks = initWheatStocks;
