@@ -235,9 +235,9 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
                 wheat: '#d9a93f', barley: '#c46a1a', oats: '#8fa848', hay: '#5a7745',
               };
               const tip: Record<string, string> = {
-                wheat: 'Primary bread grain. ~8 bu/ac. Highest kcal per bushel.',
-                barley: 'Brewed into ale (~20% of monthly kcal demand under the 365/12 planning basis). ~10 bu/ac.',
-                oats: 'Animal feed first; emergency human food. ~10 bu/ac.',
+                wheat: 'Primary bread grain. 10 bu/ac gross yield; 2.5 bu/ac reserved for seed. Highest kcal per bushel.',
+                barley: 'Brewed into ale (~20% of monthly kcal demand under the 365/12 planning basis). 12 bu/ac gross yield; 4 bu/ac reserved for seed.',
+                oats: 'Animal feed first; emergency human food. 12 bu/ac gross yield; 4 bu/ac reserved for seed.',
                 hay: 'Cultivated meadow for winter livestock feed. ~1.2 tons/ac.',
               };
               const acres = Math.round((activeAcres * params.landSplit[crop]) / 100);
@@ -317,7 +317,7 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
                 return (
                   <div key={key} className="flex items-center justify-between border-b border-[rgba(120,80,30,0.14)] pb-1 text-[0.66rem] tabular-nums">
                     <span className="text-[var(--color-ink-400)]">{label}</span>
-                    <span className="text-[var(--color-ink-500)]">{required.toFixed(1)} → {supplied.toFixed(1)} → {slack.toFixed(1)} {unit}</span>
+                    <span className="text-[var(--color-ink-500)]">need {required.toFixed(1)} {unit} · have {supplied.toFixed(1)} {unit} · margin {slack >= 0 ? '+' : ''}{slack.toFixed(1)} {unit}</span>
                   </div>
                 );
               })}

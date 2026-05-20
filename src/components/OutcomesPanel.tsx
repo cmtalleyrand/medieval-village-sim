@@ -168,8 +168,39 @@ export function OutcomesPanel({ results, params, isSimulating }: Props) {
           />
         </div>
       </Card>
+
+      <Card>
+        <CardHeader
+          title="Physical Output Ledger"
+          subtitle="Primary quantities in physical units"
+          icon={<ShieldCheck className="w-5 h-5" />}
+        />
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 text-[0.75rem]">
+          <LedgerRow label="Wheat" value={`${Math.round(results.conversionAudit.physicalOutputs.grainBushels.wheat).toLocaleString()} bu`} />
+          <LedgerRow label="Barley" value={`${Math.round(results.conversionAudit.physicalOutputs.grainBushels.barley).toLocaleString()} bu`} />
+          <LedgerRow label="Oats" value={`${Math.round(results.conversionAudit.physicalOutputs.grainBushels.oats).toLocaleString()} bu`} />
+          <LedgerRow label="Hay" value={`${Math.round(results.conversionAudit.physicalOutputs.hayTons).toLocaleString()} tons`} />
+          <LedgerRow label="Cow milk" value={`${Math.round(results.conversionAudit.physicalOutputs.milkGallons.cow).toLocaleString()} gal/yr`} />
+          <LedgerRow label="Ewe milk" value={`${Math.round(results.conversionAudit.physicalOutputs.milkGallons.ewe).toLocaleString()} gal/yr`} />
+          <LedgerRow label="Wool" value={`${Math.round(results.conversionAudit.physicalOutputs.woolLbs).toLocaleString()} lb`} />
+          <LedgerRow label="Cloth" value={`${Math.round(results.conversionAudit.physicalOutputs.clothYards).toLocaleString()} yd`} />
+          <LedgerRow label="Sheep meat" value={`${Math.round(results.conversionAudit.physicalOutputs.meatLbs.sheep).toLocaleString()} lb`} />
+        </div>
+      </Card>
+      <details className="text-[0.72rem] text-[var(--color-ink-300)]">
+        <summary className="cursor-pointer select-none">Show energy-conversion audit (advanced)</summary>
+        <div className="mt-2 p-2 rounded-sm border border-[rgba(120,80,30,0.18)] bg-[rgba(255,250,230,0.45)] space-y-1 tabular-nums">
+          <div>Fuel gathered: {Math.round(results.conversionAudit.fuel.annualGathered.usableHeatKj).toLocaleString()} kJ usable heat</div>
+          <div>Fuel winter demand: {Math.round(results.conversionAudit.fuel.annualWinterDemand.usableHeatKj).toLocaleString()} kJ usable heat</div>
+          <div>Barley processing loss routed to feed: {Math.round(results.conversionAudit.foods.barley.energy.processingWasteAnimalKj).toLocaleString()} kJ</div>
+        </div>
+      </details>
     </div>
   );
+}
+
+function LedgerRow({ label, value }: { label: string; value: string }) {
+  return <div className="flex justify-between border-b border-[rgba(120,80,30,0.18)] py-1"><span>{label}</span><span className="tabular-nums">{value}</span></div>;
 }
 
 function DietSegment({ color, pct, label }: { color: string; pct: number; label: string }) {
