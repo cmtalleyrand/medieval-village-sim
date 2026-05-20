@@ -38,6 +38,7 @@ export function SimPanel({ view, params, setParams }: Props) {
     haySpoilageRate: clamp(next.haySpoilageRate, 0, 100),
     titheAndManufacturePct: clamp(next.titheAndManufacturePct, 0, 100),
     woolPerSheep: clamp(next.woolPerSheep, 0),
+    clothingNeedWoolLbs: clamp(next.clothingNeedWoolLbs, 0),
     fuelYieldPerAcre: clamp(next.fuelYieldPerAcre, 0),
     fuelNeedsSummer: clamp(next.fuelNeedsSummer, 0),
     fuelNeedsWinter: clamp(next.fuelNeedsWinter, 0),

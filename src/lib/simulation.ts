@@ -23,6 +23,7 @@ export interface SimParams {
   haySpoilageRate: number;
   titheAndManufacturePct: number;
   woolPerSheep: number;
+  clothingNeedWoolLbs: number;
   woodlandAcres: number;
   fuelYieldPerAcre: number;
   fuelNeedsSummer: number;
@@ -76,6 +77,7 @@ export interface SimResult {
   severeShortageObj: number; // probability 0-1
   animalDeathObj: number;
   fuelShortageObj: number;
+  clothingShortageObj: number; // probability 0-1
   avgWheatRemaining: number;
   avgOatsRemaining: number;
   avgWoolPerYear: number;
@@ -130,6 +132,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   let severeShortageCount = 0;
   let animalDeathCount = 0;
   let fuelShortageCount = 0;
+  let clothingShortageCount = 0;
   
   let totalWheatEnd = 0;
   let totalOatsEnd = 0;
@@ -149,15 +152,40 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   const CROP_MATURATION_MONTHS = 8;
   const firstHarvestMonth = Math.max(1, Math.min(params.growingMonths, CROP_MATURATION_MONTHS));
   
+  const titheFactor = (100 - params.titheAndManufacturePct) / 100;
+  const wAcresConst = activeAcres * (params.landSplit.wheat / 100);
+  const bAcresConst = activeAcres * (params.landSplit.barley / 100);
+  const oAcresConst = activeAcres * (params.landSplit.oats / 100);
+  const hAcresConst = activeAcres * (params.landSplit.hay / 100);
+  const cattleOatsPerMonth = totalOxen * params.feedNeedsWinter.oxenOats + totalCows * params.feedNeedsWinter.cowOats;
+  const cattleHayPerMonth = totalOxen * params.feedNeedsWinter.oxenHay + totalCows * params.feedNeedsWinter.cowHay;
+  // Seed reserves needed each spring
+  const seedWheat = wAcresConst * params.cropStats.wheat.seedRate;
+  const seedBarley = bAcresConst * params.cropStats.barley.seedRate;
+  const seedOats = oAcresConst * params.cropStats.oats.seedRate;
+  // Initial stocks represent the post-winter carry-over: prior harvest minus prior winter consumption.
+  // This makes starting conditions parameter-derived rather than arbitrary magic numbers.
+  const initWheatStocks = Math.max(seedWheat,
+    wAcresConst * params.yields.wheat * titheFactor - (monthlyKcalReq * 0.5 * params.winterMonths / params.cropStats.wheat.kcalPerBu) + seedWheat);
+  const initBarleyStocks = Math.max(seedBarley,
+    bAcresConst * params.yields.barley * titheFactor - (monthlyKcalReq * 0.15 * params.winterMonths / params.cropStats.barley.kcalPerBu) + seedBarley);
+  const initOatStocks = Math.max(seedOats + cattleOatsPerMonth,
+    oAcresConst * params.yields.oats * titheFactor - cattleOatsPerMonth * params.winterMonths + seedOats);
+  const initHayStocks = Math.max(cattleHayPerMonth,
+    hAcresConst * params.yields.hay - cattleHayPerMonth * params.winterMonths);
+  // Fuel: prior year's woodland harvest minus what was burned through the prior year
+  const initFuelStocks = Math.max(0,
+    params.woodlandAcres * params.fuelYieldPerAcre
+    - params.households * (params.fuelNeedsWinter * params.winterMonths + params.fuelNeedsSummer * params.growingMonths));
+
   for (let i = 0; i < iterations; i++) {
-    // Start with enough stock to bridge to first harvest, including seed reserves for each crop cycle
-    let wheatStocks = (monthlyKcalReq * firstHarvestMonth / params.cropStats.wheat.kcalPerBu) + (activeAcres * (params.landSplit.wheat / 100) * params.cropStats.wheat.seedRate);
-    let barleyStocks = (monthlyKcalReq * firstHarvestMonth * 0.5 / params.cropStats.barley.kcalPerBu) + (activeAcres * (params.landSplit.barley / 100) * params.cropStats.barley.seedRate);
-    let oatStocks = (totalOxen * firstHarvestMonth) + (totalCows * firstHarvestMonth) + (activeAcres * (params.landSplit.oats / 100) * params.cropStats.oats.seedRate);
-    let hayStocks = (totalOxen * 0.5 * firstHarvestMonth) + (totalCows * 0.5 * firstHarvestMonth) + (initialSheep * 0.2 * firstHarvestMonth);
+    let wheatStocks = initWheatStocks;
+    let barleyStocks = initBarleyStocks;
+    let oatStocks = initOatStocks;
+    let hayStocks = initHayStocks;
     let currentSheep = initialSheep;
     let meatStocks = 0;
-    let fuelStocks = params.woodlandAcres * params.fuelYieldPerAcre;
+    let fuelStocks = initFuelStocks;
 
     let herd: Cattle[] = [];
     herd.push({ type: 'bull', ageMonths: 48 });
@@ -178,6 +206,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
       let hadSevere = false;
       let animalDeath = false;
       let hadFuelShortage = false;
+      let woolThisYear = 0;
 
       // Annually randomize yields
       const wYield = randomizeYield(params.yields.wheat, params.yieldVariability);
@@ -185,10 +214,10 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
       const oYield = randomizeYield(params.yields.oats, params.yieldVariability);
       const hYield = randomizeYield(params.yields.hay, params.yieldVariability);
 
-      const wAcres = activeAcres * (params.landSplit.wheat / 100);
-      const bAcres = activeAcres * (params.landSplit.barley / 100);
-      const oAcres = activeAcres * (params.landSplit.oats / 100);
-      const hAcres = activeAcres * (params.landSplit.hay / 100);
+      const wAcres = wAcresConst;
+      const bAcres = bAcresConst;
+      const oAcres = oAcresConst;
+      const hAcres = hAcresConst;
 
       // Simulate 12 months: Growing season then Winter
       for (let month = 1; month <= params.growingMonths + params.winterMonths; month++) {
@@ -226,15 +255,17 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
 
         // Sheep shearing (Early summer, Month 3)
         if (month === 3) {
-            const titheFactor = (100 - params.titheAndManufacturePct) / 100;
             woolThisMonth = (currentSheep * params.woolPerSheep) * titheFactor;
+            woolThisYear += woolThisMonth;
             totalWoolProduced += woolThisMonth;
         }
 
-        // Harvest logic: crops mature every ~8 months; long growing seasons can yield multiple harvests
+        // Harvest logic: crops mature every 8 months; the end-of-season harvest always yields fully
+        // (the base yield per acre already encodes expected output for the local climate's season length).
         if (growingMonth > 0 && (cycleMonth === CROP_MATURATION_MONTHS || growingMonth === params.growingMonths)) {
-            const cycleProgress = cycleMonth === CROP_MATURATION_MONTHS ? 1 : cycleMonth / CROP_MATURATION_MONTHS;
-            const titheFactor = (100 - params.titheAndManufacturePct) / 100;
+            const cycleProgress = (cycleMonth === CROP_MATURATION_MONTHS || growingMonth === params.growingMonths)
+              ? 1.0
+              : cycleMonth / CROP_MATURATION_MONTHS;
 
             wheatStocks += (wAcres * wYield * cycleProgress) * titheFactor;
             barleyStocks += (bAcres * bYield * cycleProgress) * titheFactor;
@@ -556,10 +587,13 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         }
       }
 
+      const totalPeople = params.households * (params.peoplePerHH.male + params.peoplePerHH.female + params.peoplePerHH.child);
+      const woolNeeded = totalPeople * params.clothingNeedWoolLbs;
       if (hadShortage) shortageCount++;
       if (hadSevere) severeShortageCount++;
       if (animalDeath) animalDeathCount++;
       if (hadFuelShortage) fuelShortageCount++;
+      if (woolThisYear < woolNeeded) clothingShortageCount++;
     }
     
     totalWheatEnd += wheatStocks;
@@ -574,6 +608,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
     severeShortageObj: severeShortageCount / annualDenominator,
     animalDeathObj: animalDeathCount / annualDenominator,
     fuelShortageObj: fuelShortageCount / annualDenominator,
+    clothingShortageObj: clothingShortageCount / annualDenominator,
     avgWheatRemaining: totalWheatEnd / iterations,
     avgOatsRemaining: totalOatsEnd / iterations,
     avgWoolPerYear: totalWoolProduced / (iterations * YEARS_PER_ITERATION),

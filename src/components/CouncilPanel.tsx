@@ -330,7 +330,8 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
                 <NumberField step={0.1} label="Grain spoil %/mo" value={params.spoilageRate} onChange={v => setField('spoilageRate', v)} onCommit={commitParams} />
                 <NumberField step={0.1} label="Hay spoil %/mo" value={params.haySpoilageRate} onChange={v => setField('haySpoilageRate', v)} onCommit={commitParams} />
                 <NumberField label="Tithe & mfg %" value={params.titheAndManufacturePct} onChange={v => setField('titheAndManufacturePct', v)} onCommit={commitParams} />
-                <NumberField step={0.1} label="Wool lbs/sheep/yr" value={params.woolPerSheep} onChange={v => setField('woolPerSheep', v)} onCommit={commitParams} />
+                <NumberField step={0.1} label="Wool lbs/sheep/yr" tooltip="Raw wool shorn per sheep per year." value={params.woolPerSheep} onChange={v => setField('woolPerSheep', v)} onCommit={commitParams} />
+                <NumberField step={0.1} label="Clothing lbs/person" tooltip="Lbs of wool each person needs annually for basic garments (tunic, cloak, hose). Shortfall drives the Bare Backs risk." value={params.clothingNeedWoolLbs} onChange={v => setField('clothingNeedWoolLbs', v)} onCommit={commitParams} />
               </div>
             </Subsection>
 

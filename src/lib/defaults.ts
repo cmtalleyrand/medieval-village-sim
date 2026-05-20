@@ -23,6 +23,7 @@ export const DEFAULTS: SimParams = {
   haySpoilageRate: 5, // % per month for hay
   titheAndManufacturePct: 15, // % deducted from harvest for taxes, tithes, and non-cloth manufactures
   woolPerSheep: 1.5, // lbs of wool per sheep per year
+  clothingNeedWoolLbs: 1.5, // lbs of wool needed per person per year for basic garments
   woodlandAcres: 300, // Acres of woodland/commons for gathering fuel
   fuelYieldPerAcre: 1.5, // Cartloads of fuel gathered per acre of woodland per year
   fuelNeedsSummer: 0.5, // Cartloads of fuel per household per month (cooking)

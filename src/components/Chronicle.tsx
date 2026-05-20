@@ -48,7 +48,7 @@ export function Chronicle({ history, params }: ChronicleProps) {
 
   // Granary capacities (max ever reached) for scale
   const maxValues = useMemo(() => {
-    let mw = 0, mb = 0, mo = 0, mh = 0, mf = 0, mm = 0;
+    let mw = 0, mb = 0, mo = 0, mh = 0, mf = 0, mm = 0, mc = 0, ms = 0;
     for (const r of history) {
       if (r.wheat > mw) mw = r.wheat;
       if (r.barley > mb) mb = r.barley;
@@ -56,8 +56,10 @@ export function Chronicle({ history, params }: ChronicleProps) {
       if (r.hay > mh) mh = r.hay;
       if (r.fuel > mf) mf = r.fuel;
       if (r.meatStock > mm) mm = r.meatStock;
+      if (r.cattleCount > mc) mc = r.cattleCount;
+      if (r.sheep > ms) ms = r.sheep;
     }
-    return { wheat: mw, barley: mb, oats: mo, hay: mh, fuel: mf, meat: mm };
+    return { wheat: mw, barley: mb, oats: mo, hay: mh, fuel: mf, meat: mm, cattle: mc, sheep: ms };
   }, [history]);
 
   // Events derived from current row (e.g. shortage, shearing)
@@ -119,6 +121,8 @@ export function Chronicle({ history, params }: ChronicleProps) {
             <StockJar label="Hay" value={cur.hay} unit="tons" color="#5a7745" max={maxValues.hay} icon="🌿" />
             <StockJar label="Fuel" value={cur.fuel} unit="carts" color="#6b4423" max={maxValues.fuel} icon="🪵" />
             <StockJar label="Preserved Meat" value={cur.meatStock / 1000} unit="kkcal" color="#9b1c1c" max={maxValues.meat / 1000} icon="🥩" />
+            <StockJar label="Cattle" value={cur.cattleCount} unit="head" color="#7a3a1c" max={maxValues.cattle} icon="🐄" />
+            <StockJar label="Sheep" value={cur.sheep} unit="head" color="#8a7a60" max={maxValues.sheep} icon="🐑" />
           </div>
         </div>
 
