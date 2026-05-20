@@ -42,6 +42,10 @@ export function SimPanel({ view, params, setParams }: Props) {
     fuelYieldPerAcre: clamp(next.fuelYieldPerAcre, 0),
     fuelNeedsSummer: clamp(next.fuelNeedsSummer, 0),
     fuelNeedsWinter: clamp(next.fuelNeedsWinter, 0),
+    plannerRiskBufferPct: clamp(next.plannerRiskBufferPct, 0),
+    bullsPerCow: clamp(next.bullsPerCow, 0),
+    pastureAcresPerSheep: clamp(next.pastureAcresPerSheep, 0),
+    pastureAcresPerCattle: clamp(next.pastureAcresPerCattle, 0),
     landSplit: {
       wheat: clamp(next.landSplit.wheat, 0, 100),
       barley: clamp(next.landSplit.barley, 0, 100),

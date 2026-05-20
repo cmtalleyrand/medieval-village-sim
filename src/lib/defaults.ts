@@ -28,6 +28,10 @@ export const DEFAULTS: SimParams = {
   fuelYieldPerAcre: 1.5, // Cartloads of fuel gathered per acre of woodland per year
   fuelNeedsSummer: 0.5, // Cartloads of fuel per household per month (cooking)
   fuelNeedsWinter: 1.5, // Cartloads of fuel per household per month (cooking + heating)
+  plannerRiskBufferPct: 5, // Planner-only reserve margin applied to annual needs
+  bullsPerCow: 1 / 12, // Bulls required per cow
+  pastureAcresPerSheep: 0.5, // Pasture acres per sheep
+  pastureAcresPerCattle: 1, // Pasture acres per ox/cow/bull
   
   peoplePerHH: { male: 1, female: 1, child: 2.5 },
   kcalPerDay: { male: 2500, female: 2000, child: 1600 },
