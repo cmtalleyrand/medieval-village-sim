@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Castle, Wheat, Trees, Settings2, ChevronDown, ChevronRight, Sparkles, Calculator, Users, Sprout, Beef, Flame } from 'lucide-react';
+import { Castle, Wheat, Trees, Settings2, ChevronDown, ChevronRight, Sparkles, Calculator, Users, Sprout, Beef, Flame, Lock, Unlock } from 'lucide-react';
 import { Card, CardHeader, Fleuron, Tooltip, IconButton } from './ui';
 import { SimParams, autoAllocateLand, solveMinimumAcres } from '../lib/simulation';
 
@@ -8,10 +8,12 @@ interface Props {
   setParams: React.Dispatch<React.SetStateAction<SimParams>>;
   commitParams: () => void;
   setAndCommitParams: React.Dispatch<React.SetStateAction<SimParams>>;
+  hasPendingDraft?: boolean;
 }
 
-export function CouncilPanel({ params, setParams, commitParams, setAndCommitParams }: Props) {
+export function CouncilPanel({ params, setParams, commitParams, setAndCommitParams, hasPendingDraft }: Props) {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [lockedCrops, setLockedCrops] = useState<Set<'wheat' | 'barley' | 'oats' | 'hay'>>(new Set());
   const sliderCommitTimer = useRef<number | null>(null);
 
   type NumericFieldKeys = {
@@ -31,17 +33,28 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
   ) =>
     setParams(prev => ({ ...prev, [cat]: { ...prev[cat], [key]: v } }));
 
+  const toggleCropLock = (crop: 'wheat' | 'barley' | 'oats' | 'hay') => {
+    setLockedCrops(prev => {
+      const next = new Set(prev);
+      if (next.has(crop)) next.delete(crop); else next.add(crop);
+      return next;
+    });
+  };
+
   const setLandSplit = (crop: 'wheat' | 'barley' | 'oats' | 'hay', value: number) => {
     setParams(prev => {
       const val = Math.max(0, Math.min(100, value));
-      const others = (['wheat', 'barley', 'oats', 'hay'] as const).filter(c => c !== crop);
-      const otherSum = others.reduce((sum, c) => sum + prev.landSplit[c], 0);
-      const newOtherSum = 100 - val;
+      const allCrops = ['wheat', 'barley', 'oats', 'hay'] as const;
+      const free = allCrops.filter(c => c !== crop && !lockedCrops.has(c));
+      const locked = allCrops.filter(c => c !== crop && lockedCrops.has(c));
+      const lockedSum = locked.reduce((sum, c) => sum + prev.landSplit[c], 0);
+      const freeSum = free.reduce((sum, c) => sum + prev.landSplit[c], 0);
+      const remaining = Math.max(0, 100 - val - lockedSum);
       const newSplit: typeof prev.landSplit = { ...prev.landSplit, [crop]: val };
-      if (otherSum === 0) {
-        others.forEach(c => (newSplit[c] = newOtherSum / 3));
+      if (freeSum === 0) {
+        free.forEach(c => (newSplit[c] = remaining / Math.max(1, free.length)));
       } else {
-        others.forEach(c => (newSplit[c] = prev.landSplit[c] * (newOtherSum / otherSum)));
+        free.forEach(c => (newSplit[c] = Math.max(0, prev.landSplit[c] * (remaining / freeSum))));
       }
       return { ...prev, landSplit: newSplit };
     });
@@ -87,6 +100,12 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
 
   return (
     <div className="space-y-4">
+      {hasPendingDraft && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-sm bg-[rgba(184,134,11,0.12)] border border-[rgba(184,134,11,0.35)] text-[0.72rem] text-[#b8860b] font-[var(--font-display)] tracking-wide">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#b8860b] animate-pulse" />
+          Changes pending — blur field or press Enter to re-run the simulation
+        </div>
+      )}
       {/* DEMOGRAPHICS */}
       <Card>
         <CardHeader
@@ -199,8 +218,9 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
               };
               const acres = Math.round((activeAcres * params.landSplit[crop]) / 100);
               const pct = params.landSplit[crop];
+              const isLocked = lockedCrops.has(crop);
               return (
-                <div key={crop} className="flex items-center gap-3 my-2">
+                <div key={crop} className="flex items-center gap-2 my-2">
                   <Tooltip text={tip[crop]}>
                     <span className="w-14 text-[0.78rem] capitalize text-[var(--color-ink-400)] font-medium font-[var(--font-display)] tracking-wider cursor-help">
                       {crop}
@@ -212,17 +232,25 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
                     max={100}
                     step={1}
                     value={pct}
+                    disabled={isLocked}
                     onChange={e => {
                       setLandSplit(crop, Number(e.target.value));
                       queueSliderCommit();
                     }}
-                    className="quill flex-1"
+                    className={`quill flex-1 ${isLocked ? 'opacity-40 cursor-not-allowed' : ''}`}
                     style={{ accentColor: cropColors[crop] }}
                   />
-                  <span className="w-20 text-right text-[0.75rem] tabular-nums text-[var(--color-ink-400)]">
+                  <span className="w-16 text-right text-[0.75rem] tabular-nums text-[var(--color-ink-400)]">
                     <span className="font-bold">{Math.round(pct)}%</span>
                     <span className="text-[var(--color-ink-300)] ml-1">· {acres}ac</span>
                   </span>
+                  <button
+                    onClick={() => toggleCropLock(crop)}
+                    className={`w-5 h-5 flex items-center justify-center rounded-sm transition-colors ${isLocked ? 'text-[#b8860b] bg-[rgba(184,134,11,0.15)]' : 'text-[var(--color-ink-300)] hover:text-[var(--color-ink-400)]'}`}
+                    title={isLocked ? `Unlock ${crop}` : `Lock ${crop} at ${Math.round(pct)}%`}
+                  >
+                    {isLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+                  </button>
                 </div>
               );
             })}

@@ -19,6 +19,7 @@ export function SimPanel({ view, params, setParams }: Props) {
   const [results, setResults] = useState<SimResult | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [draftParams, setDraftParams] = useState<SimParams>(params);
+  const [isDraft, setIsDraft] = useState(false);
 
   const clamp = (value: number, min: number, max?: number) => {
     const base = Math.max(min, Number.isFinite(value) ? value : min);
@@ -92,10 +93,17 @@ export function SimPanel({ view, params, setParams }: Props) {
 
   useEffect(() => {
     setDraftParams(params);
+    setIsDraft(false);
   }, [params]);
+
+  const setDraftParamsTracked: React.Dispatch<React.SetStateAction<SimParams>> = (updater) => {
+    setDraftParams(updater);
+    setIsDraft(true);
+  };
 
   const commitDraft = () => {
     commitParams(draftParams);
+    setIsDraft(false);
   };
 
   useEffect(() => {
@@ -125,9 +133,10 @@ export function SimPanel({ view, params, setParams }: Props) {
       <div className="xl:col-span-5 space-y-5">
         <CouncilPanel
           params={draftParams}
-          setParams={setDraftParams}
+          setParams={setDraftParamsTracked}
           commitParams={commitDraft}
           setAndCommitParams={commitParams}
+          hasPendingDraft={isDraft}
         />
       </div>
 
