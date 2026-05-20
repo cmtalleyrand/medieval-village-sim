@@ -18,11 +18,34 @@ interface Props {
 export function SimPanel({ view, params, setParams }: Props) {
   const [results, setResults] = useState<SimResult | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [draftParams, setDraftParams] = useState<SimParams>(params);
 
-  const clamp = (value: number, min: number) => Math.max(min, Number.isFinite(value) ? value : min);
+  const clamp = (value: number, min: number, max?: number) => {
+    const base = Math.max(min, Number.isFinite(value) ? value : min);
+    return max === undefined ? base : Math.min(max, base);
+  };
   const clampParams = (next: SimParams): SimParams => ({
     ...next,
     households: Math.floor(clamp(next.households, 1)),
+    growingMonths: Math.floor(clamp(next.growingMonths, 1, 24)),
+    winterMonths: Math.floor(clamp(next.winterMonths, 1, 24)),
+    totalAcres: clamp(next.totalAcres, 1),
+    woodlandAcres: clamp(next.woodlandAcres, 0),
+    yieldVariability: clamp(next.yieldVariability, 0, 100),
+    fallowPct: clamp(next.fallowPct, 0, 100),
+    spoilageRate: clamp(next.spoilageRate, 0, 100),
+    haySpoilageRate: clamp(next.haySpoilageRate, 0, 100),
+    titheAndManufacturePct: clamp(next.titheAndManufacturePct, 0, 100),
+    woolPerSheep: clamp(next.woolPerSheep, 0),
+    fuelYieldPerAcre: clamp(next.fuelYieldPerAcre, 0),
+    fuelNeedsSummer: clamp(next.fuelNeedsSummer, 0),
+    fuelNeedsWinter: clamp(next.fuelNeedsWinter, 0),
+    landSplit: {
+      wheat: clamp(next.landSplit.wheat, 0, 100),
+      barley: clamp(next.landSplit.barley, 0, 100),
+      oats: clamp(next.landSplit.oats, 0, 100),
+      hay: clamp(next.landSplit.hay, 0, 100),
+    },
     yields: {
       wheat: clamp(next.yields.wheat, 0.000001),
       barley: clamp(next.yields.barley, 0.000001),
@@ -48,13 +71,31 @@ export function SimPanel({ view, params, setParams }: Props) {
         seedRate: clamp(next.cropStats.oats.seedRate, 0),
       },
     },
+    peoplePerHH: {
+      male: clamp(next.peoplePerHH.male, 0),
+      female: clamp(next.peoplePerHH.female, 0),
+      child: clamp(next.peoplePerHH.child, 0),
+    },
+    animalsPerHH: {
+      oxen: clamp(next.animalsPerHH.oxen, 0),
+      cows: clamp(next.animalsPerHH.cows, 0),
+      sheep: clamp(next.animalsPerHH.sheep, 0),
+    },
   });
 
-  const clampedSetParams: Props['setParams'] = (updater) => {
+  const commitParams: Props['setParams'] = (updater) => {
     setParams(prev => {
       const proposed = typeof updater === 'function' ? updater(prev) : updater;
       return clampParams(proposed);
     });
+  };
+
+  useEffect(() => {
+    setDraftParams(params);
+  }, [params]);
+
+  const commitDraft = () => {
+    commitParams(draftParams);
   };
 
   useEffect(() => {
@@ -82,7 +123,12 @@ export function SimPanel({ view, params, setParams }: Props) {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
       <div className="xl:col-span-5 space-y-5">
-        <CouncilPanel params={params} setParams={clampedSetParams} />
+        <CouncilPanel
+          params={draftParams}
+          setParams={setDraftParams}
+          commitParams={commitDraft}
+          setAndCommitParams={commitParams}
+        />
       </div>
 
       <div className="xl:col-span-7 space-y-5">
