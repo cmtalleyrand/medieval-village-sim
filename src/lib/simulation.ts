@@ -59,6 +59,7 @@ export interface MonthHistory {
   sheep: number;
   cattleCount: number;
   wool: number;
+  woolStocks: number;
   meatStock: number;
   deficit: number;
 }
@@ -170,7 +171,11 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   const initBarleyStocks = monthlyKcalReq * firstHarvestMonth * 0.20 / params.cropStats.barley.kcalPerBu + seedBarley;
   const initOatStocks    = seedOats + totalOxen * (params.feedNeedsWinter.oxenOats / 2); // seed + spring plowing draw
   const initHayStocks    = 0;
-  const initFuelStocks   = params.households * params.fuelNeedsSummer * firstHarvestMonth;
+  // Fuel: gathered continuously during the growing season, so no bridge stock needed.
+  // Wool: carry-over from the previous year's shearing (half annual village need).
+  const totalPeople = params.households * (params.peoplePerHH.male + params.peoplePerHH.female + params.peoplePerHH.child);
+  const monthlyClothingWool = totalPeople * params.clothingNeedWoolLbs / 12;
+  const initWoolStocks = totalPeople * params.clothingNeedWoolLbs * 0.5;
 
   for (let i = 0; i < iterations; i++) {
     let wheatStocks = initWheatStocks;
@@ -179,7 +184,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
     let hayStocks = initHayStocks;
     let currentSheep = initialSheep;
     let meatStocks = 0;
-    let fuelStocks = initFuelStocks;
+    let fuelStocks = 0;
+    let woolStocks = initWoolStocks;
 
     let herd: Cattle[] = [];
     herd.push({ type: 'bull', ageMonths: 48 });
@@ -200,13 +206,15 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
       let hadSevere = false;
       let animalDeath = false;
       let hadFuelShortage = false;
-      let woolThisYear = 0;
+      let hadClothingShortage = false;
 
-      // Annually randomize yields
+      // Annually randomize yields (fuel gathering is weather-dependent like crops)
       const wYield = randomizeYield(params.yields.wheat, params.yieldVariability);
       const bYield = randomizeYield(params.yields.barley, params.yieldVariability);
       const oYield = randomizeYield(params.yields.oats, params.yieldVariability);
       const hYield = randomizeYield(params.yields.hay, params.yieldVariability);
+      const annualFuelYield = randomizeYield(params.woodlandAcres * params.fuelYieldPerAcre, params.yieldVariability);
+      const monthlyFuelGathering = annualFuelYield / params.growingMonths;
 
       const wAcres = wAcresConst;
       const bAcres = bAcresConst;
@@ -247,11 +255,23 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             herd = herd.concat(newCalves);
         }
 
-        // Sheep shearing (Early summer, Month 3)
+        // Fuel gathered continuously throughout the growing season
+        if (!isWinter) {
+            fuelStocks += monthlyFuelGathering;
+        }
+
+        // Sheep shearing (Early summer, Month 3): add to wool stock
         if (month === 3) {
             woolThisMonth = (currentSheep * params.woolPerSheep) * titheFactor;
-            woolThisYear += woolThisMonth;
+            woolStocks += woolThisMonth;
             totalWoolProduced += woolThisMonth;
+        }
+
+        // Clothing: consume wool from stock every month; shortage if stock runs dry
+        {
+            const consumed = Math.min(woolStocks, monthlyClothingWool);
+            woolStocks -= consumed;
+            if (consumed < monthlyClothingWool) hadClothingShortage = true;
         }
 
         // Harvest logic: crops mature every 8 months. A long growing season yields multiple
@@ -264,7 +284,6 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             barleyStocks += (bAcres * bYield * cycleProgress) * titheFactor;
             oatStocks += (oAcres * oYield * cycleProgress) * titheFactor;
             hayStocks += (hAcres * hYield * cycleProgress);
-            fuelStocks += params.woodlandAcres * randomizeYield(params.fuelYieldPerAcre, params.yieldVariability) * cycleProgress;
         }
         
         if (isSeedPlanting) {
@@ -574,19 +593,18 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             sheep: currentSheep,
             cattleCount: herd.length,
             wool: Math.round(woolThisMonth),
+            woolStocks: Math.round(woolStocks),
             meatStock: Math.round(meatStocks),
             deficit: Math.round(kcalNeeded)
           });
         }
       }
 
-      const totalPeople = params.households * (params.peoplePerHH.male + params.peoplePerHH.female + params.peoplePerHH.child);
-      const woolNeeded = totalPeople * params.clothingNeedWoolLbs;
       if (hadShortage) shortageCount++;
       if (hadSevere) severeShortageCount++;
       if (animalDeath) animalDeathCount++;
       if (hadFuelShortage) fuelShortageCount++;
-      if (woolThisYear < woolNeeded) clothingShortageCount++;
+      if (hadClothingShortage) clothingShortageCount++;
     }
     
     totalWheatEnd += wheatStocks;
