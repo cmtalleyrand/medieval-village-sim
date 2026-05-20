@@ -89,6 +89,30 @@ interface Cattle {
     ageMonths: number;
 }
 
+const DAYS_PER_YEAR = 365;
+const MONTHS_PER_YEAR = 12;
+const WINTER_DAIRY_OUTPUT_FACTOR = 0.35;
+
+function getDailyKcalRequirement(params: SimParams) {
+  return params.households * (
+    params.kcalPerDay.male * params.peoplePerHH.male +
+    params.kcalPerDay.female * params.peoplePerHH.female +
+    params.kcalPerDay.child * params.peoplePerHH.child
+  );
+}
+
+function getAnnualKcalRequirement(params: SimParams) {
+  return getDailyKcalRequirement(params) * DAYS_PER_YEAR;
+}
+
+function getMonthlyKcalRequirement(params: SimParams) {
+  return getAnnualKcalRequirement(params) / MONTHS_PER_YEAR;
+}
+
+function getDairyMonthsEquivalent(winterMonths: number) {
+  return (MONTHS_PER_YEAR - winterMonths) + (winterMonths * WINTER_DAIRY_OUTPUT_FACTOR);
+}
+
 export function randomizeYield(base: number, variabilityPct: number) {
   // Simple Box-Muller transform for normal distribution
   let u = 0, v = 0;
@@ -114,8 +138,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   let exampleHistory: MonthHistory[] = [];
   let dietAgg: HumanDiet = { wheat: 0, barley: 0, oats: 0, dairy: 0, meat: 0, deficit: 0 };
   
-  const dailyKcalReq = params.households * (params.kcalPerDay.male * params.peoplePerHH.male + params.kcalPerDay.female * params.peoplePerHH.female + params.kcalPerDay.child * params.peoplePerHH.child);
-  const monthlyKcalReq = dailyKcalReq * 30;
+  const monthlyKcalReq = getMonthlyKcalRequirement(params);
 
   const totalOxen = params.households * params.animalsPerHH.oxen;
   const totalCows = params.households * params.animalsPerHH.cows;
@@ -316,9 +339,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         
         let sheepDairy = (currentSheep * 0.5) * params.production.sheepDairyKcal; // Assuming ~50% are ewes
         let dairyKcal = cowDairy + sheepDairy; 
-        if (isWinter) {
-            dairyKcal = dairyKcal * 0.35; // 65% drop in winter dairy production
-        }
+        if (isWinter) dairyKcal = dairyKcal * WINTER_DAIRY_OUTPUT_FACTOR; // 65% drop in winter dairy production
         dietAgg.dairy += dairyKcal;
         let availableKcal = dairyKcal;
         
@@ -596,9 +617,7 @@ export function runDeterministicRiskSmokeCheck(): { annualFamineProbability: num
 
 export function autoAllocateLand(params: SimParams): SimParams["landSplit"] {
   const activeAcres = params.totalAcres * (1 - params.fallowPct / 100);
-  
-  const dailyKcalReq = params.households * (params.kcalPerDay.male * params.peoplePerHH.male + params.kcalPerDay.female * params.peoplePerHH.female + params.kcalPerDay.child * params.peoplePerHH.child);
-  const yearlyKcalReq = dailyKcalReq * 365;
+  const yearlyKcalReq = getAnnualKcalRequirement(params);
 
   const titheFactor = (100 - params.titheAndManufacturePct) / 100
 
@@ -620,7 +639,7 @@ export function autoAllocateLand(params: SimParams): SimParams["landSplit"] {
   const hayNeeded = (oxenFeedUnits * params.feedNeedsWinter.oxenHay + cowFeedUnits * params.feedNeedsWinter.cowHay) * params.winterMonths + (initialSheep * params.feedNeedsWinter.sheepHay * sheepHayFactor);
 
   // Human Kcal provided by animals natively
-  const dairyMonthsEquivalent = (12 - params.winterMonths) + (params.winterMonths * 0.35);
+  const dairyMonthsEquivalent = getDairyMonthsEquivalent(params.winterMonths);
   const animalKcalPerYear = (totalCows * params.production.cowDairyKcal + (initialSheep * 0.5) * params.production.sheepDairyKcal) * dairyMonthsEquivalent + (initialSheep * 0.1 * params.production.sheepMeatKcal);
 
   // Kcal needed from crops
@@ -678,8 +697,7 @@ export function autoAllocateLand(params: SimParams): SimParams["landSplit"] {
 }
 
 export function solveMinimumAcres(params: SimParams): number {
-  const dailyKcalReq = params.households * (params.kcalPerDay.male * params.peoplePerHH.male + params.kcalPerDay.female * params.peoplePerHH.female + params.kcalPerDay.child * params.peoplePerHH.child);
-  const yearlyKcalReq = dailyKcalReq * 365;
+  const yearlyKcalReq = getAnnualKcalRequirement(params);
 
   const titheFactor = (100 - params.titheAndManufacturePct) / 100
 
@@ -699,7 +717,7 @@ export function solveMinimumAcres(params: SimParams): number {
   }
   const hayNeeded = (oxenFeedUnits * params.feedNeedsWinter.oxenHay + cowFeedUnits * params.feedNeedsWinter.cowHay) * params.winterMonths + (initialSheep * params.feedNeedsWinter.sheepHay * sheepHayFactor);
 
-  const dairyMonthsEquivalent = (12 - params.winterMonths) + (params.winterMonths * 0.35);
+  const dairyMonthsEquivalent = getDairyMonthsEquivalent(params.winterMonths);
   const animalKcalPerYear = (totalCows * params.production.cowDairyKcal + (initialSheep * 0.5) * params.production.sheepDairyKcal) * dairyMonthsEquivalent + (initialSheep * 0.1 * params.production.sheepMeatKcal);
   const cropKcalNeeded = Math.max(0, yearlyKcalReq - animalKcalPerYear);
 
