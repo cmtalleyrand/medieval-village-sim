@@ -163,20 +163,23 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   const seedWheat = wAcresConst * params.cropStats.wheat.seedRate;
   const seedBarley = bAcresConst * params.cropStats.barley.seedRate;
   const seedOats = oAcresConst * params.cropStats.oats.seedRate;
-  // Initial stocks represent the post-winter carry-over: prior harvest minus prior winter consumption.
-  // This makes starting conditions parameter-derived rather than arbitrary magic numbers.
-  const initWheatStocks = Math.max(seedWheat,
-    wAcresConst * params.yields.wheat * titheFactor - (monthlyKcalReq * 0.5 * params.winterMonths / params.cropStats.wheat.kcalPerBu) + seedWheat);
-  const initBarleyStocks = Math.max(seedBarley,
-    bAcresConst * params.yields.barley * titheFactor - (monthlyKcalReq * 0.15 * params.winterMonths / params.cropStats.barley.kcalPerBu) + seedBarley);
-  const initOatStocks = Math.max(seedOats + cattleOatsPerMonth,
-    oAcresConst * params.yields.oats * titheFactor - cattleOatsPerMonth * params.winterMonths + seedOats);
-  const initHayStocks = Math.max(cattleHayPerMonth,
-    hAcresConst * params.yields.hay - cattleHayPerMonth * params.winterMonths);
-  // Fuel: prior year's woodland harvest minus what was burned through the prior year
-  const initFuelStocks = Math.max(0,
-    params.woodlandAcres * params.fuelYieldPerAcre
-    - params.households * (params.fuelNeedsWinter * params.winterMonths + params.fuelNeedsSummer * params.growingMonths));
+  // Initial stocks represent the post-winter carry-over from a typical prior season.
+  // A long growing season contains multiple 8-month crop cycles, so total yield scales
+  // with harvestsPerSeason (e.g. a 36-month summer produces ~4.5 cycles of harvest).
+  const harvestsPerSeason = Math.floor(params.growingMonths / CROP_MATURATION_MONTHS)
+    + (params.growingMonths % CROP_MATURATION_MONTHS) / CROP_MATURATION_MONTHS;
+
+  const priorWheatYield  = wAcresConst * params.yields.wheat  * titheFactor * harvestsPerSeason;
+  const priorBarleyYield = bAcresConst * params.yields.barley * titheFactor * harvestsPerSeason;
+  const priorOatYield    = oAcresConst * params.yields.oats   * titheFactor * harvestsPerSeason;
+  const priorHayYield    = hAcresConst * params.yields.hay                  * harvestsPerSeason;
+  const priorFuelYield   = params.woodlandAcres * params.fuelYieldPerAcre   * harvestsPerSeason;
+
+  const initWheatStocks  = Math.max(seedWheat,  priorWheatYield  - monthlyKcalReq * 0.50 * params.winterMonths / params.cropStats.wheat.kcalPerBu  + seedWheat);
+  const initBarleyStocks = Math.max(seedBarley, priorBarleyYield - monthlyKcalReq * 0.15 * params.winterMonths / params.cropStats.barley.kcalPerBu + seedBarley);
+  const initOatStocks    = Math.max(seedOats + cattleOatsPerMonth, priorOatYield - cattleOatsPerMonth * params.winterMonths + seedOats);
+  const initHayStocks    = Math.max(cattleHayPerMonth, priorHayYield - cattleHayPerMonth * params.winterMonths);
+  const initFuelStocks   = Math.max(0, priorFuelYield - params.households * (params.fuelNeedsWinter * params.winterMonths + params.fuelNeedsSummer * params.growingMonths));
 
   for (let i = 0; i < iterations; i++) {
     let wheatStocks = initWheatStocks;
@@ -260,12 +263,11 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             totalWoolProduced += woolThisMonth;
         }
 
-        // Harvest logic: crops mature every 8 months; the end-of-season harvest always yields fully
-        // (the base yield per acre already encodes expected output for the local climate's season length).
+        // Harvest logic: crops mature every 8 months. A long growing season yields multiple
+        // full harvests. If the season ends mid-cycle the immature crop is harvested at a
+        // proportional fraction of a full yield (e.g. 7-month season → 7/8 = 87.5%).
         if (growingMonth > 0 && (cycleMonth === CROP_MATURATION_MONTHS || growingMonth === params.growingMonths)) {
-            const cycleProgress = (cycleMonth === CROP_MATURATION_MONTHS || growingMonth === params.growingMonths)
-              ? 1.0
-              : cycleMonth / CROP_MATURATION_MONTHS;
+            const cycleProgress = cycleMonth === CROP_MATURATION_MONTHS ? 1 : cycleMonth / CROP_MATURATION_MONTHS;
 
             wheatStocks += (wAcres * wYield * cycleProgress) * titheFactor;
             barleyStocks += (bAcres * bYield * cycleProgress) * titheFactor;
