@@ -11,10 +11,13 @@ interface ChronicleProps {
   params: SimParams;
 }
 
+type ChartFocus = 'grain' | 'hay' | 'fuel' | 'livestock' | 'all';
+
 export function Chronicle({ history, params }: ChronicleProps) {
   const [currentMonth, setCurrentMonth] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(450);
+  const [focus, setFocus] = useState<ChartFocus>('all');
 
   const monthsPerYear = params.growingMonths + params.winterMonths;
 
@@ -171,76 +174,151 @@ export function Chronicle({ history, params }: ChronicleProps) {
         </div>
       </Card>
 
-      {/* Time series — Granary & Livestock */}
+      {/* Time series — focus-mode charts */}
       <Card>
         <CardHeader
-          title="Five-Year Granary"
+          title="Five-Year Chronicle"
           subtitle="The stocks rise at harvest, drain through winter"
           icon={<Wheat className="w-5 h-5" />}
+          right={
+            <div className="flex gap-1">
+              {(['all', 'grain', 'hay', 'fuel', 'livestock'] as ChartFocus[]).map(f => (
+                <button
+                  key={f}
+                  onClick={() => setFocus(f)}
+                  className={`px-2 py-0.5 rounded-sm text-[0.62rem] font-[var(--font-display)] uppercase tracking-wider transition-colors border ${
+                    focus === f
+                      ? 'bg-[rgba(184,134,11,0.25)] border-[rgba(184,134,11,0.6)] text-[#b8860b]'
+                      : 'border-transparent text-[var(--color-ink-300)] hover:text-[var(--color-ink-400)]'
+                  }`}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          }
         />
-        <div className="h-56 -ml-3">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 6, right: 16, bottom: 4, left: 8 }}>
-              <defs>
-                <linearGradient id="gradWheat" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#d9a93f" stopOpacity={0.6} />
-                  <stop offset="100%" stopColor="#d9a93f" stopOpacity={0.05} />
-                </linearGradient>
-                <linearGradient id="gradBarley" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#c46a1a" stopOpacity={0.55} />
-                  <stop offset="100%" stopColor="#c46a1a" stopOpacity={0.05} />
-                </linearGradient>
-                <linearGradient id="gradOats" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#8fa848" stopOpacity={0.55} />
-                  <stop offset="100%" stopColor="#8fa848" stopOpacity={0.05} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="#8a6a3f" opacity={0.18} />
-              <XAxis dataKey="month" tickFormatter={(v) => {
-                const y = Math.floor((v - 1) / monthsPerYear) + 1;
-                const m = ((v - 1) % monthsPerYear) + 1;
-                return m === 1 ? `Y${y}` : '';
-              }} tick={{ fill: '#5e4222', fontSize: 11, fontFamily: 'Cinzel, serif' }} axisLine={{ stroke: '#8a6a3f' }} tickLine={{ stroke: '#8a6a3f' }} />
-              <YAxis tick={{ fill: '#8a6a3f', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }} axisLine={{ stroke: '#8a6a3f' }} tickLine={{ stroke: '#8a6a3f' }} />
-              <RechartsTooltip contentStyle={{ background: '#2a1d10', border: '1px solid #b8860b', borderRadius: 3, fontFamily: 'EB Garamond, serif', color: '#f3e8c8', fontSize: 12 }} labelStyle={{ color: '#e5c373', fontFamily: 'Cinzel, serif', letterSpacing: 1 }} />
-              {Array.from({ length: 5 }).map((_, i) => (
-                <ReferenceArea
-                  key={`winter-${i}`}
-                  x1={i * monthsPerYear + params.growingMonths + 1}
-                  x2={(i + 1) * monthsPerYear}
-                  fill="#b8d0e0" fillOpacity={0.18} strokeOpacity={0}
-                />
-              ))}
-              <ReferenceLine x={cur.month} stroke="#9b1c1c" strokeWidth={1.5} strokeDasharray="2 3" />
-              <Legend wrapperStyle={{ fontFamily: 'Cinzel, serif', fontSize: 10, letterSpacing: 1.4, color: '#5e4222' }} iconType="square" />
-              <Area type="monotone" dataKey="wheat" name="Wheat" stroke="#a17915" fill="url(#gradWheat)" strokeWidth={2} />
-              <Area type="monotone" dataKey="barley" name="Barley" stroke="#8e4a0d" fill="url(#gradBarley)" strokeWidth={2} />
-              <Area type="monotone" dataKey="oats" name="Oats" stroke="#5a7026" fill="url(#gradOats)" strokeWidth={2} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
 
-        <div className="h-44 mt-3 -ml-3">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 6, right: 16, bottom: 4, left: 8 }}>
-              <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="#8a6a3f" opacity={0.18} />
-              <XAxis dataKey="month" tickFormatter={(v) => {
-                const y = Math.floor((v - 1) / monthsPerYear) + 1;
-                const m = ((v - 1) % monthsPerYear) + 1;
-                return m === 1 ? `Y${y}` : '';
-              }} tick={{ fill: '#5e4222', fontSize: 11, fontFamily: 'Cinzel, serif' }} axisLine={{ stroke: '#8a6a3f' }} tickLine={{ stroke: '#8a6a3f' }} />
-              <YAxis tick={{ fill: '#8a6a3f', fontSize: 10 }} axisLine={{ stroke: '#8a6a3f' }} tickLine={{ stroke: '#8a6a3f' }} />
-              <RechartsTooltip contentStyle={{ background: '#2a1d10', border: '1px solid #b8860b', borderRadius: 3, fontFamily: 'EB Garamond, serif', color: '#f3e8c8', fontSize: 12 }} labelStyle={{ color: '#e5c373' }} />
-              {Array.from({ length: 5 }).map((_, i) => (
-                <ReferenceArea key={`winter-l-${i}`} x1={i * monthsPerYear + params.growingMonths + 1} x2={(i + 1) * monthsPerYear} fill="#b8d0e0" fillOpacity={0.18} strokeOpacity={0} />
-              ))}
-              <ReferenceLine x={cur.month} stroke="#9b1c1c" strokeWidth={1.5} strokeDasharray="2 3" />
-              <Legend wrapperStyle={{ fontFamily: 'Cinzel, serif', fontSize: 10, letterSpacing: 1.4, color: '#5e4222' }} iconType="square" />
-              <Line type="stepAfter" dataKey="cattleCount" name="Cattle" stroke="#9b1c1c" strokeWidth={2} dot={false} />
-              <Line type="stepAfter" dataKey="sheep" name="Sheep" stroke="#3d2a15" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        {(focus === 'all' || focus === 'grain') && (
+          <div className="h-56 -ml-3">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 6, right: 16, bottom: 4, left: 8 }}>
+                <defs>
+                  <linearGradient id="gradWheat" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#d9a93f" stopOpacity={0.6} />
+                    <stop offset="100%" stopColor="#d9a93f" stopOpacity={0.05} />
+                  </linearGradient>
+                  <linearGradient id="gradBarley" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#c46a1a" stopOpacity={0.55} />
+                    <stop offset="100%" stopColor="#c46a1a" stopOpacity={0.05} />
+                  </linearGradient>
+                  <linearGradient id="gradOats" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#8fa848" stopOpacity={0.55} />
+                    <stop offset="100%" stopColor="#8fa848" stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="#8a6a3f" opacity={0.18} />
+                <XAxis dataKey="month" tickFormatter={(v) => {
+                  const y = Math.floor((v - 1) / monthsPerYear) + 1;
+                  const m = ((v - 1) % monthsPerYear) + 1;
+                  return m === 1 ? `Y${y}` : '';
+                }} tick={{ fill: '#5e4222', fontSize: 11, fontFamily: 'Cinzel, serif' }} axisLine={{ stroke: '#8a6a3f' }} tickLine={{ stroke: '#8a6a3f' }} />
+                <YAxis tick={{ fill: '#8a6a3f', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }} axisLine={{ stroke: '#8a6a3f' }} tickLine={{ stroke: '#8a6a3f' }} />
+                <RechartsTooltip contentStyle={{ background: '#2a1d10', border: '1px solid #b8860b', borderRadius: 3, fontFamily: 'EB Garamond, serif', color: '#f3e8c8', fontSize: 12 }} labelStyle={{ color: '#e5c373', fontFamily: 'Cinzel, serif', letterSpacing: 1 }} />
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <ReferenceArea key={`winter-g-${i}`} x1={i * monthsPerYear + params.growingMonths + 1} x2={(i + 1) * monthsPerYear} fill="#b8d0e0" fillOpacity={0.18} strokeOpacity={0} />
+                ))}
+                <ReferenceLine x={cur.month} stroke="#9b1c1c" strokeWidth={1.5} strokeDasharray="2 3" />
+                <Legend wrapperStyle={{ fontFamily: 'Cinzel, serif', fontSize: 10, letterSpacing: 1.4, color: '#5e4222' }} iconType="square" />
+                <Area type="monotone" dataKey="wheat" name="Wheat" stroke="#a17915" fill="url(#gradWheat)" strokeWidth={2} />
+                <Area type="monotone" dataKey="barley" name="Barley" stroke="#8e4a0d" fill="url(#gradBarley)" strokeWidth={2} />
+                <Area type="monotone" dataKey="oats" name="Oats" stroke="#5a7026" fill="url(#gradOats)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {(focus === 'all' || focus === 'hay') && (
+          <div className={`-ml-3 ${focus === 'all' ? 'h-36 mt-3' : 'h-56'}`}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 6, right: 16, bottom: 4, left: 8 }}>
+                <defs>
+                  <linearGradient id="gradHay" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#5a7745" stopOpacity={0.65} />
+                    <stop offset="100%" stopColor="#5a7745" stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="#8a6a3f" opacity={0.18} />
+                <XAxis dataKey="month" tickFormatter={(v) => {
+                  const y = Math.floor((v - 1) / monthsPerYear) + 1;
+                  const m = ((v - 1) % monthsPerYear) + 1;
+                  return m === 1 ? `Y${y}` : '';
+                }} tick={{ fill: '#5e4222', fontSize: 11, fontFamily: 'Cinzel, serif' }} axisLine={{ stroke: '#8a6a3f' }} tickLine={{ stroke: '#8a6a3f' }} />
+                <YAxis tick={{ fill: '#8a6a3f', fontSize: 10 }} axisLine={{ stroke: '#8a6a3f' }} tickLine={{ stroke: '#8a6a3f' }} />
+                <RechartsTooltip contentStyle={{ background: '#2a1d10', border: '1px solid #b8860b', borderRadius: 3, fontFamily: 'EB Garamond, serif', color: '#f3e8c8', fontSize: 12 }} labelStyle={{ color: '#e5c373' }} />
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <ReferenceArea key={`winter-h-${i}`} x1={i * monthsPerYear + params.growingMonths + 1} x2={(i + 1) * monthsPerYear} fill="#b8d0e0" fillOpacity={0.18} strokeOpacity={0} />
+                ))}
+                <ReferenceLine x={cur.month} stroke="#9b1c1c" strokeWidth={1.5} strokeDasharray="2 3" />
+                <Legend wrapperStyle={{ fontFamily: 'Cinzel, serif', fontSize: 10, letterSpacing: 1.4, color: '#5e4222' }} iconType="square" />
+                <Area type="monotone" dataKey="hay" name="Hay (tons)" stroke="#3d5c30" fill="url(#gradHay)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {(focus === 'all' || focus === 'fuel') && (
+          <div className={`-ml-3 ${focus === 'all' ? 'h-36 mt-3' : 'h-56'}`}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 6, right: 16, bottom: 4, left: 8 }}>
+                <defs>
+                  <linearGradient id="gradFuel" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#6b4423" stopOpacity={0.65} />
+                    <stop offset="100%" stopColor="#6b4423" stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="#8a6a3f" opacity={0.18} />
+                <XAxis dataKey="month" tickFormatter={(v) => {
+                  const y = Math.floor((v - 1) / monthsPerYear) + 1;
+                  const m = ((v - 1) % monthsPerYear) + 1;
+                  return m === 1 ? `Y${y}` : '';
+                }} tick={{ fill: '#5e4222', fontSize: 11, fontFamily: 'Cinzel, serif' }} axisLine={{ stroke: '#8a6a3f' }} tickLine={{ stroke: '#8a6a3f' }} />
+                <YAxis tick={{ fill: '#8a6a3f', fontSize: 10 }} axisLine={{ stroke: '#8a6a3f' }} tickLine={{ stroke: '#8a6a3f' }} />
+                <RechartsTooltip contentStyle={{ background: '#2a1d10', border: '1px solid #b8860b', borderRadius: 3, fontFamily: 'EB Garamond, serif', color: '#f3e8c8', fontSize: 12 }} labelStyle={{ color: '#e5c373' }} />
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <ReferenceArea key={`winter-f-${i}`} x1={i * monthsPerYear + params.growingMonths + 1} x2={(i + 1) * monthsPerYear} fill="#b8d0e0" fillOpacity={0.18} strokeOpacity={0} />
+                ))}
+                <ReferenceLine x={cur.month} stroke="#9b1c1c" strokeWidth={1.5} strokeDasharray="2 3" />
+                <Legend wrapperStyle={{ fontFamily: 'Cinzel, serif', fontSize: 10, letterSpacing: 1.4, color: '#5e4222' }} iconType="square" />
+                <Area type="monotone" dataKey="fuel" name="Fuel (carts)" stroke="#4a2e10" fill="url(#gradFuel)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {(focus === 'all' || focus === 'livestock') && (
+          <div className={`-ml-3 ${focus === 'all' ? 'h-36 mt-3' : 'h-56'}`}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 6, right: 16, bottom: 4, left: 8 }}>
+                <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="#8a6a3f" opacity={0.18} />
+                <XAxis dataKey="month" tickFormatter={(v) => {
+                  const y = Math.floor((v - 1) / monthsPerYear) + 1;
+                  const m = ((v - 1) % monthsPerYear) + 1;
+                  return m === 1 ? `Y${y}` : '';
+                }} tick={{ fill: '#5e4222', fontSize: 11, fontFamily: 'Cinzel, serif' }} axisLine={{ stroke: '#8a6a3f' }} tickLine={{ stroke: '#8a6a3f' }} />
+                <YAxis tick={{ fill: '#8a6a3f', fontSize: 10 }} axisLine={{ stroke: '#8a6a3f' }} tickLine={{ stroke: '#8a6a3f' }} />
+                <RechartsTooltip contentStyle={{ background: '#2a1d10', border: '1px solid #b8860b', borderRadius: 3, fontFamily: 'EB Garamond, serif', color: '#f3e8c8', fontSize: 12 }} labelStyle={{ color: '#e5c373' }} />
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <ReferenceArea key={`winter-l-${i}`} x1={i * monthsPerYear + params.growingMonths + 1} x2={(i + 1) * monthsPerYear} fill="#b8d0e0" fillOpacity={0.18} strokeOpacity={0} />
+                ))}
+                <ReferenceLine x={cur.month} stroke="#9b1c1c" strokeWidth={1.5} strokeDasharray="2 3" />
+                <Legend wrapperStyle={{ fontFamily: 'Cinzel, serif', fontSize: 10, letterSpacing: 1.4, color: '#5e4222' }} iconType="square" />
+                <Line type="stepAfter" dataKey="cattleCount" name="Cattle" stroke="#9b1c1c" strokeWidth={2} dot={false} />
+                <Line type="stepAfter" dataKey="sheep" name="Sheep" stroke="#3d2a15" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </Card>
     </div>
   );

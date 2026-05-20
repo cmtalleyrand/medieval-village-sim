@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Map, ScrollText, BookOpen } from 'lucide-react';
+import { Map, ScrollText, BookOpen, RotateCcw } from 'lucide-react';
 import { SimPanel } from './components/SimPanel';
 import { Assumptions } from './components/Assumptions';
 import { DEFAULTS } from './lib/defaults';
@@ -28,11 +28,21 @@ function App() {
             </div>
           </div>
 
-          <nav className="flex items-center gap-1 p-1 rounded-sm bg-[rgba(0,0,0,0.35)] border border-[rgba(184,134,11,0.25)]">
-            <TabBtn active={tab === 'overview'} onClick={() => setTab('overview')} icon={<Map className="w-3.5 h-3.5" />} label="Council" />
-            <TabBtn active={tab === 'chronicle'} onClick={() => setTab('chronicle')} icon={<ScrollText className="w-3.5 h-3.5" />} label="Chronicle" />
-            <TabBtn active={tab === 'almanac'} onClick={() => setTab('almanac')} icon={<BookOpen className="w-3.5 h-3.5" />} label="Almanac" />
-          </nav>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setParams(DEFAULTS as SimParams)}
+              className="btn-wood text-[0.65rem] opacity-70 hover:opacity-100 transition-opacity"
+              title="Restore all parameters to historical defaults"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span className="hidden sm:inline">Restore Defaults</span>
+            </button>
+            <nav className="flex items-center gap-1 p-1 rounded-sm bg-[rgba(0,0,0,0.35)] border border-[rgba(184,134,11,0.25)]">
+              <TabBtn active={tab === 'overview'} onClick={() => setTab('overview')} icon={<Map className="w-3.5 h-3.5" />} label="Council" />
+              <TabBtn active={tab === 'chronicle'} onClick={() => setTab('chronicle')} icon={<ScrollText className="w-3.5 h-3.5" />} label="Chronicle" />
+              <TabBtn active={tab === 'almanac'} onClick={() => setTab('almanac')} icon={<BookOpen className="w-3.5 h-3.5" />} label="Almanac" />
+            </nav>
+          </div>
         </div>
         <div className="divider-rule" />
       </header>

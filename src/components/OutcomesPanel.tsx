@@ -50,6 +50,11 @@ export function OutcomesPanel({ results, params, isSimulating }: Props) {
         <p className="text-[0.92rem] text-[#e8d8b0] leading-relaxed italic font-[var(--font-serif)] max-w-2xl">
           {verdict.body}
         </p>
+        {verdict.driver && (
+          <p className="mt-2 text-[0.78rem] font-[var(--font-display)] tracking-wide" style={{ color: verdict.color }}>
+            ⚠ {verdict.driver}
+          </p>
+        )}
         {verdict.suggestions.length > 0 && (
           <ul className="mt-3 space-y-1 text-[0.78rem] text-[#c2a778]">
             {verdict.suggestions.map((s, i) => (
@@ -207,7 +212,7 @@ function synthesizeVerdict(
   results: SimResult,
   diet: { wheat: number; barley: number; oats: number; dairy: number; meat: number; deficit: number },
   params: SimParams
-): { headline: string; color: string; body: string; suggestions: string[] } {
+): { headline: string; color: string; body: string; driver: string | null; suggestions: string[] } {
   const famine = results.humanShortageObj * 100;
   const severe = results.severeShortageObj * 100;
   const beast = results.animalDeathObj * 100;
@@ -223,6 +228,18 @@ function synthesizeVerdict(
   if (beast > 10) suggestions.push('Livestock perish — sow more hay or fewer animals per household.');
   if (fuel > 5) suggestions.push('The hearth grows cold — extend woodland acres or improve gathering.');
   if (results.avgWheatRemaining < params.households * 5 && famine < 10) suggestions.push('Granary runs thin by spring — a poor harvest could ruin you.');
+
+  // Identify the dominant risk driver
+  const riskFactors = [
+    { name: 'severe famine', value: severe * 2 },
+    { name: 'famine', value: famine },
+    { name: 'livestock loss', value: beast },
+    { name: 'cold hearths', value: fuel },
+  ];
+  const topRisk = riskFactors.reduce((a, b) => (b.value > a.value ? b : a));
+  const driver = topRisk.value >= 5
+    ? `${topRisk.name.charAt(0).toUpperCase() + topRisk.name.slice(1)} is the leading threat at ${(topRisk.name === 'severe famine' ? severe : topRisk.value).toFixed(0)}% annual probability.`
+    : null;
 
   let headline = '';
   let color = '#5a7745';
@@ -246,5 +263,5 @@ function synthesizeVerdict(
     body = 'Bread, ale, and meat enough — the granary holds through Lent and the byre to spring. Surplus wool may even buy the lord a stained-glass window.';
   }
 
-  return { headline, color, body, suggestions };
+  return { headline, color, body, driver, suggestions };
 }
