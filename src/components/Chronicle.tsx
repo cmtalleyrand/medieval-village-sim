@@ -44,11 +44,13 @@ export function Chronicle({ history, params }: ChronicleProps) {
   const isWinter = monthInYear > params.growingMonths;
   const isHarvest = monthInYear === params.growingMonths;
   const isPlanting = monthInYear === 1;
-  const isShearing = monthInYear === 3 && !isWinter;
-  const hayCutMonth = Math.ceil(params.growingMonths / 2);
-  const isHayCut = monthInYear === hayCutMonth && !isWinter;
-  const isSpring = !isWinter && monthInYear <= Math.min(3, params.growingMonths);
-  const isAutumn = !isWinter && monthInYear >= Math.max(4, params.growingMonths - 2) && !isHarvest;
+  const firesAnnually = (miy: number, target: number) => miy >= target && (miy - target) % 12 === 0;
+  const isShearing = !isWinter && firesAnnually(monthInYear, 3);
+  const hayCutMonthInYear = Math.max(3, Math.min(6, Math.ceil(Math.min(params.growingMonths, 12) / 2)));
+  const isHayCut = !isWinter && firesAnnually(monthInYear, hayCutMonthInYear);
+  const posInCalYear = !isWinter ? ((monthInYear - 1) % 12) + 1 : 0; // 1–12 within each calendar year
+  const isSpring = !isWinter && posInCalYear <= 3;
+  const isAutumn = !isWinter && posInCalYear >= 9 && !isHarvest;
 
   // Granary capacities (max ever reached) for scale
   const maxValues = useMemo(() => {

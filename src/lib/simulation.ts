@@ -180,8 +180,16 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   const YEARS_PER_ITERATION = 5;
   const CROP_MATURATION_MONTHS = 8;
   const firstHarvestMonth = Math.max(1, Math.min(params.growingMonths, CROP_MATURATION_MONTHS));
-  // Hay is cut once per year at midsummer (first half of growing season)
-  const hayCutMonth = Math.ceil(params.growingMonths / 2);
+  // Hay is cut once per calendar year at midsummer, regardless of total growing season length.
+  // For a 7-month season one cut; for a 24-month season two cuts at months ~4 and ~16, etc.
+  const hayCutMonthInYear = Math.max(3, Math.min(6, Math.ceil(Math.min(params.growingMonths, 12) / 2)));
+
+  // Annual events within the growing season fire at months 1, 13, 25... (spring)
+  // or 3, 15, 27... (shearing) or hayCutMonthInYear, +12, +24... (hay).
+  // Autumn lambing fires at month 8, 20, 32... but only when that month is reachable.
+  const MONTHS_PER_REAL_YEAR = 12;
+  const firesAnnually = (gm: number, monthInYear: number) =>
+    gm >= monthInYear && (gm - monthInYear) % MONTHS_PER_REAL_YEAR === 0;
 
   const titheFactor = (100 - params.titheAndManufacturePct) / 100;
   const wAcresConst = activeAcres * (params.landSplit.wheat / 100);
@@ -210,19 +218,18 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   const neededCowsPerYear = Math.ceil(totalCows / 6);
   const neededOxenPerYear = Math.ceil(totalOxen / 6);
 
-  // Culling age thresholds: animal must have meaningful productive life remaining after winter
-  // Cows: need ≥15 months remaining to complete a full reproductive cycle
-  const cowCullAge = CATTLE_MAX_LIFESPAN - params.winterMonths - 15;
-  // Oxen/bulls: need ≥ half a growing season of working life remaining
-  const oxBullCullAge = CATTLE_MAX_LIFESPAN - params.winterMonths - Math.ceil(params.growingMonths / 2);
+  // Culling age thresholds: animal must have meaningful productive life remaining after winter.
+  // Cows: need ≥9 months (one gestation) remaining after winter — cull if they can't calve again.
+  const cowCullAge = CATTLE_MAX_LIFESPAN - params.winterMonths - 9;
+  // Oxen/bulls: need ≥ half of one year's growing season of working life remaining.
+  const halfSeasonMonths = Math.ceil(Math.min(params.growingMonths, 12) / 2);
+  const oxBullCullAge = CATTLE_MAX_LIFESPAN - params.winterMonths - halfSeasonMonths;
+
+  // Minimum sheep to always retain — enough breeding stock to recover over subsequent years
+  const minSheepFloor = Math.max(params.households, Math.floor(initialSheep * 0.15));
 
   // Pick a random iteration to record for the Chronicle
   const chronicleIteration = Math.floor(Math.random() * iterations);
-
-  // Secondary autumn lambing only when growing season is long enough for two cycles
-  const autumnLambingMonth = params.growingMonths >= 9
-    ? Math.floor(params.growingMonths * 0.65)
-    : -1;
 
   for (let i = 0; i < iterations; i++) {
     let wheatStocks = initWheatStocks;
@@ -277,8 +284,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
 
         herd.forEach(c => c.ageMonths++);
 
-        // Spring (month 1 of growing season): lambing and calving
-        if (growingMonth === 1) {
+        // Spring: lambing and calving fire once per calendar year (months 1, 13, 25…)
+        if (growingMonth > 0 && firesAnnually(growingMonth, 1)) {
             const newLambs = Math.floor(currentSheep * 0.3);
             currentSheep += newLambs;
             fLambs = newLambs;
@@ -294,8 +301,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             herd = herd.concat(newCalves);
         }
 
-        // Autumn lambing for long growing seasons (second breeding opportunity)
-        if (growingMonth === autumnLambingMonth) {
+        // Autumn lambing: fires at month 8, 20, 32… (only reachable in seasons ≥9 months)
+        if (growingMonth > 0 && firesAnnually(growingMonth, 8)) {
             const autumnLambs = Math.floor(currentSheep * 0.15);
             currentSheep += autumnLambs;
             fLambs += autumnLambs;
@@ -306,8 +313,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             fuelStocks += woodlandFuelYield;
         }
 
-        // Shearing at growing month 3 (early summer, after spring work is done)
-        if (growingMonth === 3) {
+        // Shearing fires once per calendar year (months 3, 15, 27…)
+        if (growingMonth > 0 && firesAnnually(growingMonth, 3)) {
             woolThisMonth = (currentSheep * params.woolPerSheep) * titheFactor;
             woolStocks += woolThisMonth;
             totalWoolProduced += woolThisMonth;
@@ -334,8 +341,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             oatStocks    += (oAcresConst * oYield * cycleProgress) * titheFactor;
         }
 
-        // Hay: cut once per year at midsummer (meadows don't accumulate like woodland)
-        if (growingMonth === hayCutMonth) {
+        // Hay: cut once per calendar year at midsummer (months 4, 16, 28… for a 7-month season)
+        if (growingMonth > 0 && firesAnnually(growingMonth, hayCutMonthInYear)) {
             const hayHarvested = hAcresConst * hYield;
             hayStocks += hayHarvested;
             fHHay = hayHarvested;
@@ -437,10 +444,9 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
           const winterKcalNeed   = monthlyKcalReq * params.winterMonths;
           const expectedShortfall = Math.max(0, winterKcalNeed - winterFoodEst);
 
-          // Pre-cull to cover shortfall; always keep enough sheep for wool/dairy viability
-          const minSheepKeep = Math.ceil(initialSheep * 0.3);
-          if (expectedShortfall > 0 && currentSheep > minSheepKeep) {
-              const canCull   = currentSheep - minSheepKeep;
+          // Pre-cull to cover shortfall; retain at minimum a viable breeding nucleus
+          if (expectedShortfall > 0 && currentSheep > minSheepFloor) {
+              const canCull   = currentSheep - minSheepFloor;
               const needCull  = Math.ceil(expectedShortfall / params.production.sheepMeatKcal);
               const extraCull = Math.min(canCull, needCull);
               currentSheep  -= extraCull;
