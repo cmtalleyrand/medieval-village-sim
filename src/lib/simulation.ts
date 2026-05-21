@@ -32,7 +32,7 @@ export interface SimParams {
   bullsPerCow: number;
   pastureAcresPerSheep: number;
   pastureAcresPerCattle: number;
-  
+
   peoplePerHH: { male: number, female: number, child: number };
   kcalPerDay: { male: number, female: number, child: number };
   animalsPerHH: { oxen: number, cows: number, sheep: number };
@@ -49,13 +49,14 @@ export interface MonthHistory {
   month: number;
   year: number;
   wheat: number;
-  barley: number; // Includes ale eqv
+  barley: number;
   oats: number;
   hay: number;
   fuel: number;
   hWheat: number;
   hBarley: number;
   hOats: number;
+  hHay: number;
   aOats: number;
   aHay: number;
   seedCol: number;
@@ -67,6 +68,8 @@ export interface MonthHistory {
   clothStocks: number;
   meatStock: number;
   deficit: number;
+  lambCount: number;
+  preWinterSheepCull: number;
 }
 
 export interface HumanDiet {
@@ -79,17 +82,17 @@ export interface HumanDiet {
 }
 
 export interface SimResult {
-  humanShortageObj: number; // probability 0-1
-  severeShortageObj: number; // probability 0-1
+  humanShortageObj: number;
+  severeShortageObj: number;
   animalDeathObj: number;
   fuelShortageObj: number;
-  clothingShortageObj: number; // probability 0-1
+  clothingShortageObj: number;
   avgWheatRemaining: number;
   avgOatsRemaining: number;
   avgWoolPerYear: number;
   logs: string[];
   history: MonthHistory[];
-  diet: HumanDiet; // kcal per household per simulation-year average
+  diet: HumanDiet;
 }
 
 interface Cattle {
@@ -100,6 +103,7 @@ interface Cattle {
 const DAYS_PER_YEAR = 365;
 const MONTHS_PER_YEAR = 12;
 const WINTER_DAIRY_OUTPUT_FACTOR = 0.35;
+const CATTLE_MAX_LIFESPAN = 120; // 10 years in months
 
 function getDailyKcalRequirement(params: SimParams) {
   return params.households * (
@@ -128,9 +132,6 @@ function boxMuller(): number {
   return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
 }
 
-// Fraction of annual yield variance explained by the shared climate shock.
-// Cross-crop correlation = product of two crops' sensitivities
-// (wheat–barley ≈ 0.56, wheat–oats ≈ 0.48, barley–oats ≈ 0.42).
 const WHEAT_CLIMATE_SENSITIVITY  = 0.8;
 const BARLEY_CLIMATE_SENSITIVITY = 0.7;
 const OATS_CLIMATE_SENSITIVITY   = 0.6;
@@ -160,57 +161,68 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   let animalDeathCount = 0;
   let fuelShortageCount = 0;
   let clothingShortageCount = 0;
-  
+
   let totalWheatEnd = 0;
   let totalOatsEnd = 0;
   let totalWoolProduced = 0;
 
   let exampleHistory: MonthHistory[] = [];
   let dietAgg: HumanDiet = { wheat: 0, barley: 0, oats: 0, dairy: 0, meat: 0, deficit: 0 };
-  
+
   const monthlyKcalReq = getMonthlyKcalRequirement(params);
 
   const totalOxen = params.households * params.animalsPerHH.oxen;
   const totalCows = params.households * params.animalsPerHH.cows;
+  const totalBulls = Math.max(1, Math.round(totalCows * params.bullsPerCow));
   const initialSheep = params.households * params.animalsPerHH.sheep;
 
   const activeAcres = params.totalAcres * (1 - params.fallowPct / 100);
   const YEARS_PER_ITERATION = 5;
   const CROP_MATURATION_MONTHS = 8;
   const firstHarvestMonth = Math.max(1, Math.min(params.growingMonths, CROP_MATURATION_MONTHS));
-  
+  // Hay is cut once per year at midsummer (first half of growing season)
+  const hayCutMonth = Math.ceil(params.growingMonths / 2);
+
   const titheFactor = (100 - params.titheAndManufacturePct) / 100;
   const wAcresConst = activeAcres * (params.landSplit.wheat / 100);
   const bAcresConst = activeAcres * (params.landSplit.barley / 100);
   const oAcresConst = activeAcres * (params.landSplit.oats / 100);
   const hAcresConst = activeAcres * (params.landSplit.hay / 100);
-  const cattleOatsPerMonth = totalOxen * params.feedNeedsWinter.oxenOats + totalCows * params.feedNeedsWinter.cowOats;
-  const cattleHayPerMonth = totalOxen * params.feedNeedsWinter.oxenHay + totalCows * params.feedNeedsWinter.cowHay;
-  // Seed reserves needed each spring
   const seedWheat = wAcresConst * params.cropStats.wheat.seedRate;
   const seedBarley = bAcresConst * params.cropStats.barley.seedRate;
   const seedOats = oAcresConst * params.cropStats.oats.seedRate;
-  // Initial stocks: enough to bridge from the start of the growing season to the first harvest,
-  // plus seed corn. Animals graze freely during the growing season so no hay or oat reserves
-  // are needed until winter arrives after that first harvest.
   const initWheatStocks  = monthlyKcalReq * firstHarvestMonth / params.cropStats.wheat.kcalPerBu + seedWheat;
   const initBarleyStocks = monthlyKcalReq * firstHarvestMonth * 0.20 / params.cropStats.barley.kcalPerBu + seedBarley;
-  const initOatStocks    = seedOats + totalOxen * (params.feedNeedsWinter.oxenOats / 2); // seed + spring plowing draw
+  const initOatStocks    = seedOats + totalOxen * (params.feedNeedsWinter.oxenOats / 2);
   const initHayStocks    = 0;
-  // Fuel: gathered continuously during the growing season, so no bridge stock needed.
-  // Wool: carry-over from the previous year's shearing (half annual village need).
   const householdPeople = params.peoplePerHH.male + params.peoplePerHH.female + params.peoplePerHH.child;
   const totalPeople = params.households * householdPeople;
-  // Women spin raw wool into cloth: each woman meets 1.5× her household's annual clothing need
   const monthlyWoolToCloth = params.households * params.peoplePerHH.female *
     (householdPeople * params.clothingNeedWoolLbs * 1.5 / 12);
-  // Consumption is weighted: double in winter, so annual total still = totalPeople * clothingNeedWoolLbs
   const clothingBaseRate = totalPeople * params.clothingNeedWoolLbs /
     (params.growingMonths + 2 * params.winterMonths);
   const initWoolStocks = totalPeople * params.clothingNeedWoolLbs * 0.5;
   const initClothStocks = totalPeople * params.clothingNeedWoolLbs * 0.5;
-  // Woodland fuel: deterministic end-of-season harvest scaled for season length; no summer consumption
+  // Woodland fuel: deterministic end-of-season harvest scaled for season length
   const woodlandFuelYield = params.woodlandAcres * params.fuelYieldPerAcre * params.growingMonths / 12;
+
+  // Replacement cohort sizes (for stable herd over 10-year lifespan)
+  const neededCowsPerYear = Math.ceil(totalCows / 6);
+  const neededOxenPerYear = Math.ceil(totalOxen / 6);
+
+  // Culling age thresholds: animal must have meaningful productive life remaining after winter
+  // Cows: need ≥15 months remaining to complete a full reproductive cycle
+  const cowCullAge = CATTLE_MAX_LIFESPAN - params.winterMonths - 15;
+  // Oxen/bulls: need ≥ half a growing season of working life remaining
+  const oxBullCullAge = CATTLE_MAX_LIFESPAN - params.winterMonths - Math.ceil(params.growingMonths / 2);
+
+  // Pick a random iteration to record for the Chronicle
+  const chronicleIteration = Math.floor(Math.random() * iterations);
+
+  // Secondary autumn lambing only when growing season is long enough for two cycles
+  const autumnLambingMonth = params.growingMonths >= 9
+    ? Math.floor(params.growingMonths * 0.65)
+    : -1;
 
   for (let i = 0; i < iterations; i++) {
     let wheatStocks = initWheatStocks;
@@ -224,19 +236,16 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
     let clothStocks = initClothStocks;
 
     let herd: Cattle[] = [];
-    herd.push({ type: 'bull', ageMonths: 48 });
-    herd.push({ type: 'bull', ageMonths: 72 });
-    for(let j=0; j<totalCows; j++) herd.push({ type: 'cow', ageMonths: 36 + Math.floor(Math.random() * 70) });
-    for(let j=0; j<totalOxen; j++) herd.push({ type: 'ox', ageMonths: 36 + Math.floor(Math.random() * 70) });
-    
-    const neededCowsPerYear = Math.ceil(totalCows / 6);
-    const neededOxenPerYear = Math.ceil(totalOxen / 6);
-    for(let ageYears = 0; ageYears < 3; ageYears++) { 
-        for(let j = 0; j < neededCowsPerYear; j++) herd.push({ type: 'cow', ageMonths: ageYears * 12 + 6 });
-        for(let j = 0; j < neededOxenPerYear; j++) herd.push({ type: 'ox', ageMonths: ageYears * 12 + 6 });
+    // Bulls: size from bullsPerCow, spread across productive ages
+    for (let j = 0; j < totalBulls; j++) herd.push({ type: 'bull', ageMonths: 36 + Math.floor(Math.random() * 60) });
+    for (let j = 0; j < totalCows; j++) herd.push({ type: 'cow', ageMonths: 36 + Math.floor(Math.random() * 70) });
+    for (let j = 0; j < totalOxen; j++) herd.push({ type: 'ox', ageMonths: 36 + Math.floor(Math.random() * 70) });
+    // Pre-load three cohorts of young stock (replacement pipeline)
+    for (let ageYears = 0; ageYears < 3; ageYears++) {
+        for (let j = 0; j < neededCowsPerYear; j++) herd.push({ type: 'cow', ageMonths: ageYears * 12 + 6 });
+        for (let j = 0; j < neededOxenPerYear; j++) herd.push({ type: 'ox', ageMonths: ageYears * 12 + 6 });
     }
-    
-    // Simulate X years continuously
+
     for (let year = 1; year <= YEARS_PER_ITERATION; year++) {
       let hadShortage = false;
       let hadSevere = false;
@@ -244,67 +253,67 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
       let hadFuelShortage = false;
       let hadClothingShortage = false;
 
-      // Shared climate shock drives correlated grain yields; hay varies independently.
       const climateShock = boxMuller();
       const wYield = randomizeCorrelatedYield(params.yields.wheat, params.yieldVariability, climateShock, WHEAT_CLIMATE_SENSITIVITY);
       const bYield = randomizeCorrelatedYield(params.yields.barley, params.yieldVariability, climateShock, BARLEY_CLIMATE_SENSITIVITY);
       const oYield = randomizeCorrelatedYield(params.yields.oats, params.yieldVariability, climateShock, OATS_CLIMATE_SENSITIVITY);
+      // Hay varies independently — meadow yield is not correlated with grain climate shocks
       const hYield = randomizeYield(params.yields.hay, params.yieldVariability);
-      const wAcres = wAcresConst;
-      const bAcres = bAcresConst;
-      const oAcres = oAcresConst;
-      const hAcres = hAcresConst;
 
-      // Simulate 12 months: Growing season then Winter
       for (let month = 1; month <= params.growingMonths + params.winterMonths; month++) {
         const isWinter = month > params.growingMonths;
         const absoluteMonth = (year - 1) * (params.growingMonths + params.winterMonths) + month;
-        const calendarMonth = ((absoluteMonth - 1) % 12) + 1;
         const growingMonth = month <= params.growingMonths ? month : 0;
         const cycleMonth = growingMonth > 0 ? ((growingMonth - 1) % CROP_MATURATION_MONTHS) + 1 : 0;
         const isSeedPlanting = growingMonth > 0 && cycleMonth === 1;
         let winterMonthIndex = isWinter ? month - params.growingMonths : 0;
 
-        // Flow tracking variables
-        let fHWheat = 0, fHBarley = 0, fHOats = 0;
+        let fHWheat = 0, fHBarley = 0, fHOats = 0, fHHay = 0;
         let fAOats = 0, fAHay = 0;
         let fSeed = 0;
         let woolThisMonth = 0;
-        
-        // Age the herd
+        let fLambs = 0;
+        let fPreWinterSheepCull = 0;
+
         herd.forEach(c => c.ageMonths++);
 
-        // Spring reproduction: fires at calendar month 1 (January equivalent), growing season only
-        if (calendarMonth === 1 && !isWinter) {
-            // Sheep reproduction
-            currentSheep += Math.floor(currentSheep * 0.3); // 30% survival of lambing
+        // Spring (month 1 of growing season): lambing and calving
+        if (growingMonth === 1) {
+            const newLambs = Math.floor(currentSheep * 0.3);
+            currentSheep += newLambs;
+            fLambs = newLambs;
 
-            // Cattle reproduction
-            let newCalves: Cattle[] = [];
+            const newCalves: Cattle[] = [];
             herd.forEach(c => {
                 if (c.type === 'cow' && c.ageMonths >= 36) {
-                     if (Math.random() < 0.8) { // 80% calving rate
-                         newCalves.push({ type: Math.random() < 0.5 ? 'ox' : 'cow', ageMonths: 0 }); 
-                     }
+                    if (Math.random() < 0.8) {
+                        newCalves.push({ type: Math.random() < 0.5 ? 'ox' : 'cow', ageMonths: 0 });
+                    }
                 }
             });
             herd = herd.concat(newCalves);
         }
 
+        // Autumn lambing for long growing seasons (second breeding opportunity)
+        if (growingMonth === autumnLambingMonth) {
+            const autumnLambs = Math.floor(currentSheep * 0.15);
+            currentSheep += autumnLambs;
+            fLambs += autumnLambs;
+        }
+
         // Woodland fuel: harvested once at end of growing season for winter.
-        // Summer cooking fuel comes from other sources — free and untracked.
         if (month === params.growingMonths) {
             fuelStocks += woodlandFuelYield;
         }
 
-        // Sheep shearing at calendar month 3 (March equivalent), growing season only
-        if (calendarMonth === 3 && !isWinter) {
+        // Shearing at growing month 3 (early summer, after spring work is done)
+        if (growingMonth === 3) {
             woolThisMonth = (currentSheep * params.woolPerSheep) * titheFactor;
             woolStocks += woolThisMonth;
             totalWoolProduced += woolThisMonth;
         }
 
-        // Clothing: women spin raw wool into cloth; cloth consumed at double rate in winter
+        // Clothing production and consumption
         {
             const spun = Math.min(woolStocks, monthlyWoolToCloth);
             woolStocks -= spun;
@@ -317,22 +326,25 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             }
         }
 
-        // Harvest logic: crops mature every 8 months. A long growing season yields multiple
-        // full harvests. If the season ends mid-cycle the immature crop is harvested at a
-        // proportional fraction of a full yield (e.g. 7-month season → 7/8 = 87.5%).
+        // Grain harvest: every 8 months (or at end of growing season if season ends mid-cycle)
         if (growingMonth > 0 && (cycleMonth === CROP_MATURATION_MONTHS || growingMonth === params.growingMonths)) {
             const cycleProgress = cycleMonth === CROP_MATURATION_MONTHS ? 1 : cycleMonth / CROP_MATURATION_MONTHS;
-
-            wheatStocks += (wAcres * wYield * cycleProgress) * titheFactor;
-            barleyStocks += (bAcres * bYield * cycleProgress) * titheFactor;
-            oatStocks += (oAcres * oYield * cycleProgress) * titheFactor;
-            hayStocks += (hAcres * hYield * cycleProgress);
+            wheatStocks  += (wAcresConst * wYield * cycleProgress) * titheFactor;
+            barleyStocks += (bAcresConst * bYield * cycleProgress) * titheFactor;
+            oatStocks    += (oAcresConst * oYield * cycleProgress) * titheFactor;
         }
-        
+
+        // Hay: cut once per year at midsummer (meadows don't accumulate like woodland)
+        if (growingMonth === hayCutMonth) {
+            const hayHarvested = hAcresConst * hYield;
+            hayStocks += hayHarvested;
+            fHHay = hayHarvested;
+        }
+
         if (isSeedPlanting) {
-            let sW = Math.min(wheatStocks, wAcres * params.cropStats.wheat.seedRate);
-            let sB = Math.min(barleyStocks, bAcres * params.cropStats.barley.seedRate);
-            let sO = Math.min(oatStocks, oAcres * params.cropStats.oats.seedRate);
+            let sW = Math.min(wheatStocks, wAcresConst * params.cropStats.wheat.seedRate);
+            let sB = Math.min(barleyStocks, bAcresConst * params.cropStats.barley.seedRate);
+            let sO = Math.min(oatStocks, oAcresConst * params.cropStats.oats.seedRate);
             wheatStocks -= sW;
             barleyStocks -= sB;
             oatStocks -= sO;
@@ -343,55 +355,101 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         let safeBarley = barleyStocks;
         let safeOats = oatStocks;
         if (!isSeedPlanting && month < params.growingMonths) {
-            safeWheat = Math.max(0, wheatStocks - (wAcres * params.cropStats.wheat.seedRate));
-            safeBarley = Math.max(0, barleyStocks - (bAcres * params.cropStats.barley.seedRate));
-            safeOats = Math.max(0, oatStocks - (oAcres * params.cropStats.oats.seedRate));
+            safeWheat = Math.max(0, wheatStocks - (wAcresConst * params.cropStats.wheat.seedRate));
+            safeBarley = Math.max(0, barleyStocks - (bAcresConst * params.cropStats.barley.seedRate));
+            safeOats = Math.max(0, oatStocks - (oAcresConst * params.cropStats.oats.seedRate));
         }
 
-        // End of growing season -> cull surplus sheep and cattle, add to meat stocks
+        // End of growing season: cull livestock before winter
         if (!isWinter && month === params.growingMonths) {
+          // 1. Surplus sheep above stable herd target
           const surplusSheep = Math.max(0, currentSheep - initialSheep);
           if (surplusSheep > 0) {
               currentSheep -= surplusSheep;
               meatStocks += surplusSheep * params.production.sheepMeatKcal;
+              fPreWinterSheepCull += surplusSheep;
           }
 
-          const survivingHerd: Cattle[] = [];
-          let culledOld = 0;
+          // 2. Sophisticated cattle culling
+          // Phase 1: remove animals that won't have meaningful productive life after winter
+          const survivingPhase1: Cattle[] = [];
           for (const c of herd) {
-              // Cull cattle that will have less than 6 months of work left by next spring
-              // Maximum lifespan is 120 months (10 years)
-              if (c.ageMonths + params.winterMonths + 6 > 120) {
-                  culledOld++;
+              const isPastPrime =
+                  (c.type === 'cow' && c.ageMonths >= cowCullAge) ||
+                  ((c.type === 'ox' || c.type === 'bull') && c.ageMonths >= oxBullCullAge);
+              if (isPastPrime) {
+                  meatStocks += params.production.cattleMeatAdult;
               } else {
-                  survivingHerd.push(c);
+                  survivingPhase1.push(c);
               }
           }
-          herd = survivingHerd;
 
-          let calvesCow = 0, calvesOx = 0, culledCalves = 0;
-          const postCullHerd: Cattle[] = [];
-          for (const c of herd) {
-              if (c.ageMonths <= 12) {
-                  if (c.type === 'cow') {
-                      if (calvesCow < neededCowsPerYear) { calvesCow++; postCullHerd.push(c); }
-                      else culledCalves++;
-                  } else if (c.type === 'ox') {
-                      if (calvesOx < neededOxenPerYear) { calvesOx++; postCullHerd.push(c); }
-                      else culledCalves++;
-                  } else {
-                      postCullHerd.push(c); // Keep subadult bulls
-                  }
-              } else {
-                  postCullHerd.push(c);
+          // Phase 2: manage young cohorts to stabilise herd size, recovering losses if needed
+          const adultCows  = survivingPhase1.filter(c => c.type === 'cow'  && c.ageMonths >= 36).length;
+          const adultOxen  = survivingPhase1.filter(c => c.type === 'ox'   && c.ageMonths >= 36).length;
+          const adultBulls = survivingPhase1.filter(c => c.type === 'bull' && c.ageMonths >= 36).length;
+
+          const cowDeficit  = Math.max(0, totalCows  - adultCows);
+          const oxDeficit   = Math.max(0, totalOxen  - adultOxen);
+          const bullDeficit = Math.max(0, totalBulls - adultBulls);
+
+          // Keep oldest young first (they are closest to productive); cull youngest
+          const youngCows  = survivingPhase1.filter(c => c.type === 'cow'  && c.ageMonths < 36).sort((a, b) => b.ageMonths - a.ageMonths);
+          const youngOxen  = survivingPhase1.filter(c => c.type === 'ox'   && c.ageMonths < 36).sort((a, b) => b.ageMonths - a.ageMonths);
+          const youngBulls = survivingPhase1.filter(c => c.type === 'bull' && c.ageMonths < 36).sort((a, b) => b.ageMonths - a.ageMonths);
+          const adults     = survivingPhase1.filter(c => c.ageMonths >= 36);
+
+          const keepCows  = neededCowsPerYear  + cowDeficit;
+          const keepOxen  = neededOxenPerYear  + oxDeficit;
+          const keepBulls = Math.max(bullDeficit, youngBulls.length > 0 ? 1 : 0);
+
+          const culledYoungCows  = youngCows.slice(keepCows);
+          const culledYoungOxen  = youngOxen.slice(keepOxen);
+          const culledYoungBulls = youngBulls.slice(keepBulls);
+          const culledCalvesCount = culledYoungCows.length + culledYoungOxen.length + culledYoungBulls.length;
+          meatStocks += culledCalvesCount * params.production.cattleMeatCalf;
+
+          herd = [
+              ...adults,
+              ...youngCows.slice(0, keepCows),
+              ...youngOxen.slice(0, keepOxen),
+              ...youngBulls.slice(0, keepBulls),
+          ];
+
+          // 3. Deterministic pre-winter food planning
+          // Villagers know the harvest and winter length; they pre-cull sheep now rather than
+          // face an emergency mid-winter.
+          let winterCowDairyEst = 0;
+          herd.forEach(c => {
+              if (c.type === 'cow') {
+                  const rate = c.ageMonths >= 48 ? 1 : c.ageMonths >= 36 ? 0.5 : 0;
+                  winterCowDairyEst += params.production.cowDairyKcal * rate * WINTER_DAIRY_OUTPUT_FACTOR;
               }
+          });
+          winterCowDairyEst *= params.winterMonths;
+          const winterSheepDairyEst = (currentSheep * 0.5) * params.production.sheepDairyKcal * WINTER_DAIRY_OUTPUT_FACTOR * params.winterMonths;
+
+          const animalsNeedOats = (totalOxen * params.feedNeedsWinter.oxenOats + totalCows * params.feedNeedsWinter.cowOats) * params.winterMonths;
+          const humanWheatKcal   = Math.max(0, wheatStocks - seedWheat) * params.cropStats.wheat.kcalPerBu;
+          const humanBarleyKcal  = barleyStocks * params.cropStats.barley.kcalPerBu;
+          const humanOatsKcal    = Math.max(0, oatStocks - seedOats - animalsNeedOats) * params.cropStats.oats.kcalPerBu;
+          const winterFoodEst    = humanWheatKcal + humanBarleyKcal + humanOatsKcal + winterCowDairyEst + winterSheepDairyEst + meatStocks;
+          const winterKcalNeed   = monthlyKcalReq * params.winterMonths;
+          const expectedShortfall = Math.max(0, winterKcalNeed - winterFoodEst);
+
+          // Pre-cull to cover shortfall; always keep enough sheep for wool/dairy viability
+          const minSheepKeep = Math.ceil(initialSheep * 0.3);
+          if (expectedShortfall > 0 && currentSheep > minSheepKeep) {
+              const canCull   = currentSheep - minSheepKeep;
+              const needCull  = Math.ceil(expectedShortfall / params.production.sheepMeatKcal);
+              const extraCull = Math.min(canCull, needCull);
+              currentSheep  -= extraCull;
+              meatStocks    += extraCull * params.production.sheepMeatKcal;
+              fPreWinterSheepCull += extraCull;
           }
-          herd = postCullHerd;
-          
-          meatStocks += (culledOld * params.production.cattleMeatAdult) + (culledCalves * params.production.cattleMeatCalf);
         }
 
-        // Fuel: communal woodland stock heats the village in winter only; summer cooking is free.
+        // Winter fuel: heated homes; summer cooking is free (dung, hedges, scraps).
         let currentMonthlyKcalReq = monthlyKcalReq;
         if (isWinter) {
             const fuelNeeded = params.households * params.fuelNeedsWinter;
@@ -401,34 +459,34 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
                 const fuelShortagePct = fuelNeeded > 0 ? (fuelNeeded - fuelStocks) / fuelNeeded : 0;
                 fuelStocks = 0;
                 hadFuelShortage = true;
-                currentMonthlyKcalReq += monthlyKcalReq * (0.3 * fuelShortagePct);
+                // Cold increases caloric need modestly (reduced cooking efficiency + body heat)
+                currentMonthlyKcalReq += monthlyKcalReq * (0.10 * fuelShortagePct);
             }
         }
 
-        // Humans consume dairy
+        // Dairy production
         let cowDairy = 0;
         herd.forEach(c => {
             if (c.type === 'cow') {
-                if (c.ageMonths >= 48) cowDairy += params.production.cowDairyKcal; // fully productive
-                else if (c.ageMonths >= 36) cowDairy += (params.production.cowDairyKcal * 0.5); // half productive
+                if (c.ageMonths >= 48) cowDairy += params.production.cowDairyKcal;
+                else if (c.ageMonths >= 36) cowDairy += (params.production.cowDairyKcal * 0.5);
             }
         });
-        
-        let sheepDairy = (currentSheep * 0.5) * params.production.sheepDairyKcal; // Assuming ~50% are ewes
-        let dairyKcal = cowDairy + sheepDairy; 
-        if (isWinter) dairyKcal = dairyKcal * WINTER_DAIRY_OUTPUT_FACTOR; // 65% drop in winter dairy production
+        let sheepDairy = (currentSheep * 0.5) * params.production.sheepDairyKcal;
+        let dairyKcal = cowDairy + sheepDairy;
+        if (isWinter) dairyKcal = dairyKcal * WINTER_DAIRY_OUTPUT_FACTOR;
         dietAgg.dairy += dairyKcal;
         let availableKcal = dairyKcal;
-        
-        // Consume Meat Stocks based on sensible diet (up to 15% of daily calories)
+
+        // Meat: up to 15% of calories from preserved stocks
         if (meatStocks > 0) {
-            let meatToEat = Math.min(meatStocks, currentMonthlyKcalReq * 0.15); 
+            let meatToEat = Math.min(meatStocks, currentMonthlyKcalReq * 0.15);
             meatStocks -= meatToEat;
             availableKcal += meatToEat;
             dietAgg.meat += meatToEat;
         }
 
-        // Determine ale/barley consumption (Ale is roughly 15-20% of the required daily intake when available)
+        // Ale/barley (~20% of caloric intake)
         let aleKcalTarget = currentMonthlyKcalReq * 0.20;
         if (safeBarley > 0) {
             const maxAleKcal = safeBarley * params.cropStats.barley.kcalPerBu;
@@ -450,88 +508,53 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
 
         let kcalNeeded = Math.max(0, currentMonthlyKcalReq - availableKcal);
 
-        // Consume Wheat & remaining Barley to meet kcal
         if (kcalNeeded > 0 && safeWheat > 0) {
           const wheatKcal = safeWheat * params.cropStats.wheat.kcalPerBu;
           if (wheatKcal > kcalNeeded) {
             const buUsed = (kcalNeeded / params.cropStats.wheat.kcalPerBu);
-            wheatStocks -= buUsed;
-            fHWheat += buUsed;
-            dietAgg.wheat += kcalNeeded;
-            kcalNeeded = 0;
+            wheatStocks -= buUsed; fHWheat += buUsed; dietAgg.wheat += kcalNeeded; kcalNeeded = 0;
           } else {
-            kcalNeeded -= wheatKcal;
-            wheatStocks -= safeWheat;
-            fHWheat += safeWheat;
-            dietAgg.wheat += wheatKcal;
+            kcalNeeded -= wheatKcal; wheatStocks -= safeWheat; fHWheat += safeWheat; dietAgg.wheat += wheatKcal;
           }
         }
         if (kcalNeeded > 0 && safeBarley > 0) {
           const barleyKcal = safeBarley * params.cropStats.barley.kcalPerBu;
           if (barleyKcal > kcalNeeded) {
             const buUsed = (kcalNeeded / params.cropStats.barley.kcalPerBu);
-            barleyStocks -= buUsed;
-            fHBarley += buUsed;
-            dietAgg.barley += kcalNeeded;
-            kcalNeeded = 0;
+            barleyStocks -= buUsed; fHBarley += buUsed; dietAgg.barley += kcalNeeded; kcalNeeded = 0;
           } else {
-            kcalNeeded -= barleyKcal;
-            barleyStocks -= safeBarley;
-            fHBarley += safeBarley;
-            dietAgg.barley += barleyKcal;
+            kcalNeeded -= barleyKcal; barleyStocks -= safeBarley; fHBarley += safeBarley; dietAgg.barley += barleyKcal;
           }
         }
-
-        // If still hungry, humans eat Oats!
         if (kcalNeeded > 0 && safeOats > 0) {
           const oatKcal = safeOats * params.cropStats.oats.kcalPerBu;
           if (oatKcal > kcalNeeded) {
             const buUsed = (kcalNeeded / params.cropStats.oats.kcalPerBu);
-            oatStocks -= buUsed;
-            fHOats += buUsed;
-            dietAgg.oats += kcalNeeded;
-            kcalNeeded = 0;
+            oatStocks -= buUsed; fHOats += buUsed; dietAgg.oats += kcalNeeded; kcalNeeded = 0;
           } else {
-            kcalNeeded -= oatKcal;
-            oatStocks -= safeOats;
-            fHOats += safeOats;
-            dietAgg.oats += oatKcal;
+            kcalNeeded -= oatKcal; oatStocks -= safeOats; fHOats += safeOats; dietAgg.oats += oatKcal;
           }
         }
-
         if (kcalNeeded > 0 && meatStocks > 0) {
-            let extraMeatEat = Math.min(meatStocks, kcalNeeded);
-            meatStocks -= extraMeatEat;
-            kcalNeeded -= extraMeatEat;
-            dietAgg.meat += extraMeatEat;
-            availableKcal += extraMeatEat;
+            let extraMeat = Math.min(meatStocks, kcalNeeded);
+            meatStocks -= extraMeat; kcalNeeded -= extraMeat;
+            dietAgg.meat += extraMeat; availableKcal += extraMeat;
         }
 
         if (kcalNeeded > 0) {
           hadShortage = true;
           if (kcalNeeded > currentMonthlyKcalReq * 0.2) hadSevere = true;
-
-          if (isWinter) {
-            while (currentSheep > 0 && kcalNeeded > 0) {
-                currentSheep--;
-                let meatKcal = params.production.sheepMeatKcal;
-                kcalNeeded = Math.max(0, kcalNeeded - meatKcal);
-                dietAgg.meat += meatKcal;
-                animalDeath = true;
-            }
-          }
-
-          if (kcalNeeded > 0) dietAgg.deficit += kcalNeeded;
+          // No emergency winter sheep slaughter: households planned before winter
+          dietAgg.deficit += kcalNeeded;
         }
 
-        // Animals consume feed
+        // Animal feed (winter only, plus spring plowing oats)
         let oatsNeeded = 0;
         let hayNeeded = 0;
         let sheepHayNeeded = 0;
         let cattleHayNeeded = 0;
 
         if (isSeedPlanting) {
-            // Active oxen need some oats for spring planting
             let activeOxen = 0;
             herd.forEach(c => { if ((c.type === 'ox' || c.type === 'bull') && c.ageMonths >= 36) activeOxen++; });
             oatsNeeded += activeOxen * (params.feedNeedsWinter.oxenOats / 2);
@@ -545,18 +568,15 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
 
                 if (c.type === 'ox' || c.type === 'bull') {
                     const oxHay = params.feedNeedsWinter.oxenHay * multiplier;
-                    hayNeeded += oxHay;
-                    cattleHayNeeded += oxHay;
+                    hayNeeded += oxHay; cattleHayNeeded += oxHay;
                     oatsNeeded += params.feedNeedsWinter.oxenOats * multiplier;
                 } else if (c.type === 'cow') {
                     const cowHay = params.feedNeedsWinter.cowHay * multiplier;
-                    hayNeeded += cowHay;
-                    cattleHayNeeded += cowHay;
+                    hayNeeded += cowHay; cattleHayNeeded += cowHay;
                     oatsNeeded += params.feedNeedsWinter.cowOats * multiplier;
                 }
             });
 
-            // Sheep
             if (winterMonthIndex > 3 && winterMonthIndex <= 6) {
                 sheepHayNeeded = currentSheep * (params.feedNeedsWinter.sheepHay / 2);
             } else if (winterMonthIndex > 6) {
@@ -565,64 +585,53 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             hayNeeded += sheepHayNeeded;
         }
 
-        // Deduct feed, preferring hay. If hay runs out, cows/oxen switch strictly to oats
         if (hayStocks >= hayNeeded) {
-          hayStocks -= hayNeeded;
-          fAHay += hayNeeded;
+          hayStocks -= hayNeeded; fAHay += hayNeeded;
         } else {
           fAHay += hayStocks;
           const hayShortfall = hayNeeded - hayStocks;
           hayStocks = 0;
-          
-          // If hay runs out, only sheep-specific hay shortfall causes sheep deaths.
-          // Cattle hay shortfalls are handled via oats substitution below.
           const sheepHayShortfall = Math.min(hayShortfall, sheepHayNeeded);
           if (sheepHayShortfall > 0 && currentSheep > 0) {
               const sheepDying = Math.min(currentSheep, Math.ceil(sheepHayShortfall / params.feedNeedsWinter.sheepHay));
               currentSheep -= sheepDying;
               animalDeath = true;
           }
-          
           const cattleHayShortfall = Math.min(hayShortfall, cattleHayNeeded);
-          oatsNeeded += cattleHayShortfall * 10; // rough conversion: 1 ton hay = 10 bu oats replacement for cattle
+          oatsNeeded += cattleHayShortfall * 10;
         }
 
         if (oatStocks >= oatsNeeded) {
-          oatStocks -= oatsNeeded;
-          fAOats += oatsNeeded;
+          oatStocks -= oatsNeeded; fAOats += oatsNeeded;
         } else {
           fAOats += oatStocks;
           const shortage = oatsNeeded - oatStocks;
           oatStocks = 0;
-          animalDeath = true; // Feed shortage = animal deaths
-          
+          animalDeath = true;
           if (shortage > 0) {
               const cattleDying = Math.min(herd.length, Math.ceil(shortage / params.feedNeedsWinter.cowOats));
-              herd.sort((a, b) => b.ageMonths - a.ageMonths); // Oldest first — least remaining productive value
+              herd.sort((a, b) => b.ageMonths - a.ageMonths);
               herd.splice(0, cattleDying);
           }
-          // Sheep are not culled here: this branch represents oat shortage for working cattle.
         }
 
-        // Spoilage at the end of the month
+        // Monthly spoilage
         const spoilFactor = (100 - params.spoilageRate) / 100;
         const haySpoilFactor = (100 - params.haySpoilageRate) / 100;
         let sW = wheatStocks * (1 - spoilFactor);
         let sB = barleyStocks * (1 - spoilFactor);
         let sO = oatStocks * (1 - spoilFactor);
         let sH = hayStocks * (1 - haySpoilFactor);
-        
         wheatStocks = Math.max(0, wheatStocks - sW);
         barleyStocks = Math.max(0, barleyStocks - sB);
         oatStocks = Math.max(0, oatStocks - sO);
         hayStocks = Math.max(0, hayStocks - sH);
         let fSpoil = sW + sB + sO + sH;
-        meatStocks = Math.max(0, meatStocks * 0.85); // 15% spoilage of preserved meat per month
-        
-        // Record history for the FIRST iteration ONLY
-        if (i === 0) {
+        meatStocks = Math.max(0, meatStocks * 0.85);
+
+        if (i === chronicleIteration) {
           exampleHistory.push({
-            month: month + ((year - 1) * (params.growingMonths + params.winterMonths)),
+            month: absoluteMonth,
             year,
             wheat: Math.round(wheatStocks),
             barley: Math.round(barleyStocks),
@@ -632,6 +641,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             hWheat: Math.round(fHWheat),
             hBarley: Math.round(fHBarley),
             hOats: Math.round(fHOats),
+            hHay: Math.round(fHHay),
             aOats: Math.round(fAOats),
             aHay: Math.round(fAHay),
             seedCol: Math.round(fSeed),
@@ -642,21 +652,25 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             woolStocks: Math.round(woolStocks),
             clothStocks: Math.round(clothStocks),
             meatStock: Math.round(meatStocks),
-            deficit: Math.round(kcalNeeded)
+            deficit: Math.round(kcalNeeded),
+            lambCount: fLambs,
+            preWinterSheepCull: Math.round(fPreWinterSheepCull),
           });
         }
-      }
+      } // end month loop
 
       if (hadShortage) shortageCount++;
       if (hadSevere) severeShortageCount++;
       if (animalDeath) animalDeathCount++;
       if (hadFuelShortage) fuelShortageCount++;
       if (hadClothingShortage) clothingShortageCount++;
-    }
-    
-    totalWheatEnd += wheatStocks;
-    totalOatsEnd += oatStocks;
-  }
+
+      // Accumulate end-of-year stocks for true mean (not just last year of run)
+      totalWheatEnd += wheatStocks;
+      totalOatsEnd += oatStocks;
+    } // end year loop
+
+  } // end iteration loop
 
   const dietDenominator = iterations * YEARS_PER_ITERATION * params.households;
   const annualDenominator = iterations * YEARS_PER_ITERATION;
@@ -667,10 +681,10 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
     animalDeathObj: animalDeathCount / annualDenominator,
     fuelShortageObj: fuelShortageCount / annualDenominator,
     clothingShortageObj: clothingShortageCount / annualDenominator,
-    avgWheatRemaining: totalWheatEnd / iterations,
-    avgOatsRemaining: totalOatsEnd / iterations,
-    avgWoolPerYear: totalWoolProduced / (iterations * YEARS_PER_ITERATION),
-    logs: [], // Add debug logs if necessary
+    avgWheatRemaining: totalWheatEnd / (iterations * YEARS_PER_ITERATION),
+    avgOatsRemaining: totalOatsEnd / (iterations * YEARS_PER_ITERATION),
+    avgWoolPerYear: totalWoolProduced / annualDenominator,
+    logs: [],
     history: exampleHistory,
     diet: {
       wheat: dietAgg.wheat / dietDenominator,
@@ -766,8 +780,6 @@ export function planVillageResources(params: SimParams, mode: PlannerMode = "min
   const hayFeedPerAcre = Math.max(0.000001, params.yields.hay * (1 - params.haySpoilageRate / 100));
   const fuelPerForestAcre = Math.max(0.000001, params.fuelYieldPerAcre * (params.growingMonths / 12));
   const kcalNeed = getAnnualKcalRequirement(params) * riskFactor;
-  // Summer fuel is gathered informally (gleaning, hedge scraps, dung) at no woodland cost.
-  // Only winter fuel requires the managed woodland stock.
   const fuelNeed = params.households * params.fuelNeedsWinter * params.winterMonths * riskFactor;
   const sheepNeed = Math.ceil((params.households * (params.peoplePerHH.male + params.peoplePerHH.female + params.peoplePerHH.child) * params.clothingNeedWoolLbs * riskFactor) / Math.max(0.000001, params.woolPerSheep));
   const oxen = Math.max(0, Math.ceil(params.households * params.animalsPerHH.oxen));
