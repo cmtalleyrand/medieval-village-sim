@@ -180,16 +180,9 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   const YEARS_PER_ITERATION = 5;
   const CROP_MATURATION_MONTHS = 8;
   const firstHarvestMonth = Math.max(1, Math.min(params.growingMonths, CROP_MATURATION_MONTHS));
-  // Hay is cut once per calendar year at midsummer, regardless of total growing season length.
-  // For a 7-month season one cut; for a 24-month season two cuts at months ~4 and ~16, etc.
-  const hayCutMonthInYear = Math.max(3, Math.min(6, Math.ceil(Math.min(params.growingMonths, 12) / 2)));
-
-  // Annual events within the growing season fire at months 1, 13, 25... (spring)
-  // or 3, 15, 27... (shearing) or hayCutMonthInYear, +12, +24... (hay).
-  // Autumn lambing fires at month 8, 20, 32... but only when that month is reachable.
-  const MONTHS_PER_REAL_YEAR = 12;
-  const firesAnnually = (gm: number, monthInYear: number) =>
-    gm >= monthInYear && (gm - monthInYear) % MONTHS_PER_REAL_YEAR === 0;
+  // Hay is cut once per growing season at midsummer (meadow yields a fixed annual crop;
+  // it does not accumulate like woodland).
+  const hayCutMonth = Math.ceil(params.growingMonths / 2);
 
   const titheFactor = (100 - params.titheAndManufacturePct) / 100;
   const wAcresConst = activeAcres * (params.landSplit.wheat / 100);
@@ -224,9 +217,6 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   // Oxen/bulls: need ≥ half of one year's growing season of working life remaining.
   const halfSeasonMonths = Math.ceil(Math.min(params.growingMonths, 12) / 2);
   const oxBullCullAge = CATTLE_MAX_LIFESPAN - params.winterMonths - halfSeasonMonths;
-
-  // Minimum sheep to always retain — enough breeding stock to recover over subsequent years
-  const minSheepFloor = Math.max(params.households, Math.floor(initialSheep * 0.15));
 
   // Pick a random iteration to record for the Chronicle
   const chronicleIteration = Math.floor(Math.random() * iterations);
@@ -284,8 +274,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
 
         herd.forEach(c => c.ageMonths++);
 
-        // Spring: lambing and calving fire once per calendar year (months 1, 13, 25…)
-        if (growingMonth > 0 && firesAnnually(growingMonth, 1)) {
+        // Spring lambing and calving: once at the start of each growing season
+        if (growingMonth === 1) {
             const newLambs = Math.floor(currentSheep * 0.3);
             currentSheep += newLambs;
             fLambs = newLambs;
@@ -301,8 +291,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             herd = herd.concat(newCalves);
         }
 
-        // Autumn lambing: fires at month 8, 20, 32… (only reachable in seasons ≥9 months)
-        if (growingMonth > 0 && firesAnnually(growingMonth, 8)) {
+        // Autumn lambing: one additional opportunity if the season is long enough
+        if (growingMonth === 8 && params.growingMonths >= 9) {
             const autumnLambs = Math.floor(currentSheep * 0.15);
             currentSheep += autumnLambs;
             fLambs += autumnLambs;
@@ -313,8 +303,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             fuelStocks += woodlandFuelYield;
         }
 
-        // Shearing fires once per calendar year (months 3, 15, 27…)
-        if (growingMonth > 0 && firesAnnually(growingMonth, 3)) {
+        // Shearing: once per growing season, early summer
+        if (growingMonth === 3) {
             woolThisMonth = (currentSheep * params.woolPerSheep) * titheFactor;
             woolStocks += woolThisMonth;
             totalWoolProduced += woolThisMonth;
@@ -341,8 +331,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             oatStocks    += (oAcresConst * oYield * cycleProgress) * titheFactor;
         }
 
-        // Hay: cut once per calendar year at midsummer (months 4, 16, 28… for a 7-month season)
-        if (growingMonth > 0 && firesAnnually(growingMonth, hayCutMonthInYear)) {
+        // Hay: single cut per growing season at midsummer
+        if (growingMonth === hayCutMonth) {
             const hayHarvested = hAcresConst * hYield;
             hayStocks += hayHarvested;
             fHHay = hayHarvested;
@@ -444,9 +434,9 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
           const winterKcalNeed   = monthlyKcalReq * params.winterMonths;
           const expectedShortfall = Math.max(0, winterKcalNeed - winterFoodEst);
 
-          // Pre-cull to cover shortfall; retain at minimum a viable breeding nucleus
-          if (expectedShortfall > 0 && currentSheep > minSheepFloor) {
-              const canCull   = currentSheep - minSheepFloor;
+          // Pre-cull sheep to cover shortfall — cull as many as needed
+          if (expectedShortfall > 0 && currentSheep > 0) {
+              const canCull   = currentSheep;
               const needCull  = Math.ceil(expectedShortfall / params.production.sheepMeatKcal);
               const extraCull = Math.min(canCull, needCull);
               currentSheep  -= extraCull;
