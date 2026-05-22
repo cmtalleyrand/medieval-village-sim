@@ -32,6 +32,8 @@ export const DEFAULTS: SimParams = {
   bullsPerCow: 1 / 12, // Bulls required per cow
   pastureAcresPerSheep: 0.5, // Pasture acres per sheep
   pastureAcresPerCattle: 1, // Pasture acres per ox/cow/bull
+  initialFertility: 0.85,
+  fertilityFloor: 0.40,
   
   peoplePerHH: { male: 1, female: 1, child: 2.5 },
   kcalPerDay: { male: 2500, female: 2000, child: 1600 },

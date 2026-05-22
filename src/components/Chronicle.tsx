@@ -44,9 +44,8 @@ export function Chronicle({ history, params }: ChronicleProps) {
   const isWinter = monthInYear > params.growingMonths;
   const isHarvest = monthInYear === params.growingMonths;
   const isPlanting = monthInYear === 1;
-  const isShearing = !isWinter && monthInYear === 3;
-  const hayCutMonth = Math.ceil(params.growingMonths / 2);
-  const isHayCut = !isWinter && monthInYear === hayCutMonth;
+  const isShearing = (cur.shearings ?? 0) > 0;
+  const isHayCut   = (cur.hayCuts   ?? 0) > 0;
   const isSpring = !isWinter && monthInYear <= 3;
   const isAutumn = !isWinter && monthInYear >= Math.max(4, params.growingMonths - 2) && !isHarvest;
 
