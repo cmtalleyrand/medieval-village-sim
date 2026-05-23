@@ -26,8 +26,10 @@ export const DEFAULTS: SimParams = {
   clothingNeedWoolLbs: 1.5, // lbs of wool needed per person per year for basic garments
   woodlandAcres: 300, // Acres of woodland/commons for gathering fuel
   fuelYieldPerAcre: 1.5, // Cartloads of fuel gathered per acre of woodland per year
-  fuelNeedsSummer: 0.5, // Cartloads of fuel per household per month (cooking)
-  fuelNeedsWinter: 1.5, // Cartloads of fuel per household per month (cooking + heating)
+  fuelNeedsSummer: 0.5,      // Cartloads of fuel per household per month (cooking)
+  fuelNeedsWinter: 1.5,      // Cartloads per household per month (shoulder winter)
+  fuelNeedsDeepWinter: 2.0,  // Cartloads per household per month (deep winter, full heating)
+  deepWinterFeedMultiplier: 1.25, // Animal feed increase in deep winter (cold stress)
   plannerRiskBufferPct: 5, // Planner-only reserve margin applied to annual needs
   bullsPerCow: 1 / 12, // Bulls required per cow
   pastureAcresPerSheep: 0.5, // Pasture acres per sheep

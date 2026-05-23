@@ -28,6 +28,8 @@ export interface SimParams {
   fuelYieldPerAcre: number;
   fuelNeedsSummer: number;
   fuelNeedsWinter: number;
+  fuelNeedsDeepWinter: number;        // cartloads per household per month in deep-winter core
+  deepWinterFeedMultiplier: number;   // multiplier on all winter animal feed in deep-winter months
   plannerRiskBufferPct: number;
   bullsPerCow: number;
   pastureAcresPerSheep: number;
@@ -110,7 +112,7 @@ export interface SimResult {
 
 // ── Season types ──────────────────────────────────────────────────────────────
 
-type SeasonType = 'spring' | 'long_summer' | 'autumn' | 'winter';
+type SeasonType = 'spring' | 'long_summer' | 'autumn' | 'winter' | 'deep_winter';
 
 function classifyMonth(growingMonth: number, G: number): SeasonType {
   if (growingMonth <= 0) return 'winter';
@@ -121,34 +123,61 @@ function classifyMonth(growingMonth: number, G: number): SeasonType {
   return 'long_summer';
 }
 
+// Long winters develop a frozen "deep winter" core with no soil recovery.
+// normalEnd months on each side are normal (shoulder) winter; the rest is deep.
+// Pattern: W<6 → all normal; W 6-11 → 2 each end; W 12-17 → 3; W 18-23 → 4; …
+// Formula: normalEnd = floor(W/6)+1 for W≥6, else ceil(W/2) (whole winter normal).
+function classifyWinterMonth(winterMonth: number, W: number): 'winter' | 'deep_winter' {
+  if (W < 6) return 'winter';
+  const normalEnd = Math.floor(W / 6) + 1;
+  if (winterMonth <= normalEnd || winterMonth > W - normalEnd) return 'winter';
+  return 'deep_winter';
+}
+
 // ── Growth rates ──────────────────────────────────────────────────────────────
 
 const SEASON_GROWTH_RATE: Record<SeasonType, number> = {
-  spring: 0.7, long_summer: 1.0, autumn: 0.7, winter: 0.0,
+  spring: 0.7, long_summer: 1.0, autumn: 0.7, winter: 0.0, deep_winter: 0.0,
 };
 
 const WOOL_GROWTH_RATE: Record<SeasonType, number> = {
-  spring: 0.8, long_summer: 1.0, autumn: 0.6, winter: 0.3,
+  spring: 0.8, long_summer: 1.0, autumn: 0.6, winter: 0.3, deep_winter: 0.3,
 };
 
 // Hay only accumulates in long_summer — spring/autumn grass is consumed by
 // grazing livestock in situ; no surplus reaches storage until summer.
 const HAY_GROWTH_RATE: Record<SeasonType, number> = {
-  spring: 0.0, long_summer: 1.0, autumn: 0.0, winter: 0.0,
+  spring: 0.0, long_summer: 1.0, autumn: 0.0, winter: 0.0, deep_winter: 0.0,
 };
 
-// ── Crop maturity (summer-equivalent growth units) ────────────────────────────
+// Fertility recovery rate used in fallow periods (per GU-equiv of idle time)
+const WINTER_FALLOW_RECOVERY: Record<'winter' | 'deep_winter', number> = {
+  winter: 0.3,      // shoulder winter: ground recovers modestly (frost mineralisation)
+  deep_winter: 0.0, // deep winter: ground frozen, no recovery
+};
+
+// ── Crop maturity and harvest window (summer-equivalent growth units) ─────────
 // Calibrated to medieval English harvest calendar (G=7: spring=3, long_summer=1, autumn=3):
-//   Barley: harvested end of long_summer → 3×0.7 + 1×1.0 = 3.1 → maturity 3.0
-//   Oats:   harvested first autumn month → 3×0.7 + 1×1.0 + 1×0.7 = 3.8 → maturity 3.5
-//   Wheat:  autumn-sown, dormant over winter, harvested ~first or second autumn month of yr2
-//           → pre-dormancy 3×0.7=2.1; resumes spring 3×0.7=2.1; long_summer 1.0 → 5.2 at
-//           long_summer end; maturity 3.5, late-bonus window harvests in first autumn (delta≈2.4)
+//   Wheat:  autumn-sown. Pre-dormancy 3 autumn months (2.1 GU) + resume spring (2.1) +
+//           long_summer (1.0) = 5.2 GU at end of long_summer. Maturity 3.5, delta=1.7 at
+//           long_summer end. harvestDeltaMax=1.5 → delta>1.5 fires in long_summer ✓
+//   Barley: sown spring. Spring (2.1) + long_summer (1.0) = 3.1 GU; end long_summer
+//           delta=0.1 < 0.5. First autumn: 3.8 GU, delta=0.8 > 0.5 → harvest ✓
+//   Oats:   same timing as barley — maturity 3.0, first-autumn harvest ✓
 
 const CROP_MATURITY: Record<'wheat' | 'barley' | 'oats', number> = {
   wheat: 3.5,
   barley: 3.0,
-  oats: 3.5,
+  oats: 3.0,
+};
+
+// Maximum delta (GU past maturity) before harvest is forced.
+// Wheat: harvested at end of long_summer (short window, grain prone to shattering).
+// Barley/oats: harvested first autumn month (can dry briefly in the shock).
+const CROP_HARVEST_DELTA_MAX: Record<'wheat' | 'barley' | 'oats', number> = {
+  wheat: 1.5,
+  barley: 0.5,
+  oats: 0.5,
 };
 
 const HAY_FIRST_CUT_THRESHOLD = 1.0;
@@ -173,20 +202,24 @@ const COW_MIN_CYCLE = 12;
 const EWE_MIN_CYCLE = 12;
 
 // ── Land fertility ─────────────────────────────────────────────────────────────
-// Monthly model (applied in processParcel and the fallow branch of each forEach):
-//   Cropped month:  fertility -= d × growthRate[season]
-//   Fallow month:   fertility += r × growthRate[season] × (1 - fertility)
-//   Winter fallow:  same formula with growthRate = 0.3
-//   Dormant wheat:  no change (not depleting, not recovering)
+// Monthly model:
+//   Cropped month:  fertility -= d × SEASON_GROWTH_RATE[season]
+//   Fallow month:   fertility += r × growthRate × (1 - fertility)
+//     growing season: growthRate = SEASON_GROWTH_RATE[season]
+//     winter fallow:  growthRate = WINTER_FALLOW_RECOVERY[season] (0.3 normal, 0.0 deep)
+//   Dormant wheat: no change
 //
-// Calibration — 3-field rotation, G=7, W=5, crops at maturity (wheat 3.5, barley 3.0):
-//   Depletion/cycle: wheat 3.5d + barley 3.0d = 6.5d
-//   Recovery GU-equiv/cycle: fallow season ≈5.2 + wheat uncropped 3.6 + barley uncropped 3.6 ≈12.4
-//   Equilibrium 6.5d = 12.4 × r × (1-f*) → d=0.04, r=0.08 → f* ≈ 0.74; planner uses 0.70.
+// Calibration — 3-field rotation, G=7 W=5, corrected harvest timing:
+//   Total cropped GU/cycle: wheat(5.2) + barley(3.8) = 9.0 GU  → depletion = 9.0d
+//   Total recovery GU-equiv/cycle:
+//     Year 1 fallow spring+summer (3.1) + Y1 winter dormant (0) + Y2 autumn post-wheat (2.1)
+//     + Y2 winter (1.5) + Y3 autumn post-barley (1.4) + Y3 winter (1.5) = 9.6 GU-equiv
+//   Equilibrium: 9.0d = 9.6 × r × (1-f*)
+//   With d=0.03, r=0.11: f* ≈ 0.75; planner uses 0.75 (mid-oscillation during crops).
 
-const FERTILITY_DEPLETION_RATE = 0.04;  // d: per growth-unit accumulated
-const FERTILITY_RECOVERY_RATE  = 0.08;  // r: per uncropped GU-equiv
-const PLANNER_AVG_FERTILITY    = 0.70;  // mean f during cropped periods at equilibrium
+const FERTILITY_DEPLETION_RATE = 0.03;  // d: per growth-unit accumulated by crop
+const FERTILITY_RECOVERY_RATE  = 0.11;  // r: per uncropped GU-equiv
+const PLANNER_AVG_FERTILITY    = 0.75;  // steady-state mean fertility at mid-oscillation
 
 // ── Wool shearing thresholds ──────────────────────────────────────────────────
 
@@ -469,7 +502,10 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
       for (let month = 1; month <= G + W; month++) {
         const isWinter = month > G;
         const growingMonth = isWinter ? 0 : month;
-        const season = classifyMonth(growingMonth, G);
+        const winterMonth = isWinter ? month - G : 0;
+        const winterType = isWinter ? classifyWinterMonth(winterMonth, W) : 'winter';
+        const isDeepWinter = winterType === 'deep_winter';
+        const season: SeasonType = isWinter ? winterType : classifyMonth(growingMonth, G);
         const absoluteMonth = (year - 1) * (G + W) + month;
         const isFirstGrowingMonth = growingMonth === 1;
         const isLastGrowingMonth = growingMonth === G;
@@ -655,9 +691,9 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
           parcel.growthUnits += SEASON_GROWTH_RATE[season];
           parcel.fertility = Math.max(fertilityFloor, parcel.fertility - FERTILITY_DEPLETION_RATE * SEASON_GROWTH_RATE[season]);
 
-          // Past late-bonus window (delta > 3): bonus declining, harvest immediately
+          // Harvest when past the crop-specific delta-max (wheat: 1.5, barley/oats: 0.5)
           const delta = parcel.growthUnits - CROP_MATURITY[parcel.type];
-          if (delta > 3) {
+          if (delta > CROP_HARVEST_DELTA_MAX[parcel.type]) {
             addHarvest(parcel.type, doHarvestParcel(parcel, baseYield));
             return;
           }
@@ -696,7 +732,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
               processParcel(ph, wBaseYield);
             } else {
               // Fallow: monthly fertility recovery (dormant wheat is never isIdle, handled below)
-              const recoveryRate = isWinter ? 0.3 : SEASON_GROWTH_RATE[season];
+              const recoveryRate = isWinter ? WINTER_FALLOW_RECOVERY[winterType] : SEASON_GROWTH_RATE[season];
               p.fertility = Math.min(1.0, p.fertility + FERTILITY_RECOVERY_RATE * recoveryRate * (1 - p.fertility));
             }
           } else {
@@ -717,7 +753,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
               processParcel(ph, bBaseYield);
             } else {
               // Fallow: monthly fertility recovery
-              const recoveryRate = isWinter ? 0.3 : SEASON_GROWTH_RATE[season];
+              const recoveryRate = isWinter ? WINTER_FALLOW_RECOVERY[winterType] : SEASON_GROWTH_RATE[season];
               p.fertility = Math.min(1.0, p.fertility + FERTILITY_RECOVERY_RATE * recoveryRate * (1 - p.fertility));
             }
           } else {
@@ -738,7 +774,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
               processParcel(ph, oBaseYield);
             } else {
               // Fallow: monthly fertility recovery
-              const recoveryRate = isWinter ? 0.3 : SEASON_GROWTH_RATE[season];
+              const recoveryRate = isWinter ? WINTER_FALLOW_RECOVERY[winterType] : SEASON_GROWTH_RATE[season];
               p.fertility = Math.min(1.0, p.fertility + FERTILITY_RECOVERY_RATE * recoveryRate * (1 - p.fertility));
             }
           } else {
@@ -839,8 +875,16 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             });
           }
 
-          // Pre-winter food planning: cull sheep to cover projected winter shortfall
-          const projWinterOats = (totalOxen * params.feedNeedsWinter.oxenOats + totalCows * params.feedNeedsWinter.cowOats) * W;
+          // Pre-winter food planning: cull sheep to cover projected winter shortfall.
+          // Account for deep-winter months having higher feed needs.
+          const deepWinterMonthCount = (() => {
+            let n = 0;
+            for (let wm = 1; wm <= W; wm++) if (classifyWinterMonth(wm, W) === 'deep_winter') n++;
+            return n;
+          })();
+          const normalWinterMonthCount = W - deepWinterMonthCount;
+          const projFeedMult = (normalWinterMonthCount + deepWinterMonthCount * params.deepWinterFeedMultiplier) / W;
+          const projWinterOats = (totalOxen * params.feedNeedsWinter.oxenOats + totalCows * params.feedNeedsWinter.cowOats) * W * projFeedMult;
           const cowDairyKcalPeak = params.production.cowDairyLitresPerMonth * params.production.milkKcalPerLitre;
           const sheepDairyKcalPeak = params.production.sheepDairyLitresPerMonth * params.production.milkKcalPerLitre;
           const projCowDairy = herd.reduce((s, c) => {
@@ -870,7 +914,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         // ── Winter fuel consumption ──
         let currentMonthlyKcalReq = monthlyKcalReq;
         if (isWinter) {
-          const fuelNeeded = params.households * params.fuelNeedsWinter;
+          const fuelPerHH = isDeepWinter ? params.fuelNeedsDeepWinter : params.fuelNeedsWinter;
+          const fuelNeeded = params.households * fuelPerHH;
           if (fuelStocks >= fuelNeeded) {
             fuelStocks -= fuelNeeded;
           } else {
@@ -980,12 +1025,13 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         }
 
         if (isWinter) {
+          // Deep winter: cold stress raises feed needs proportionally
+          const deepMult = isDeepWinter ? params.deepWinterFeedMultiplier : 1.0;
           herd.forEach(c => {
-            const mult = c.ageMonths <= 12 ? 0.2 : c.ageMonths < 36 ? 0.5 : 1;
-            // Pregnancy/lactation scaling
+            const ageMult = c.ageMonths <= 12 ? 0.2 : c.ageMonths < 36 ? 0.5 : 1;
             const pregnantMult = (c.type === 'cow' && c.pregnancyMonths >= 6) ? 1.3 : 1;
             const lactMult     = (c.type === 'cow' && c.lactationMonths >= 1 && c.lactationMonths <= 6) ? 1.2 : 1;
-            const feedMult = mult * Math.max(pregnantMult, lactMult);
+            const feedMult = ageMult * Math.max(pregnantMult, lactMult) * deepMult;
             if (c.type === 'ox' || c.type === 'bull') {
               const h = params.feedNeedsWinter.oxenHay * feedMult;
               hayNeeded += h; cattleHayNeeded += h;
@@ -1000,7 +1046,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
           flock.forEach(s => {
             const pregnantMult = s.pregnancyMonths >= 3 ? 1.5 : 1;
             const lactMult     = s.lactationMonths >= 1 ? 1.3 : 1;
-            const feedMult = Math.max(pregnantMult, lactMult);
+            const feedMult = Math.max(pregnantMult, lactMult) * deepMult;
             const h = params.feedNeedsWinter.sheepHay * feedMult;
             sheepHayNeeded += h;
           });
@@ -1197,8 +1243,19 @@ export function planVillageResources(params: SimParams, mode: PlannerMode = "min
   const hayFeedPerAcre    = Math.max(0.000001, params.yields.hay * PLANNER_AVG_FERTILITY * (1 - params.haySpoilageRate / 100));
   const fuelPerForestAcre = Math.max(0.000001, params.fuelYieldPerAcre * (params.growingMonths / 12));
 
+  // Compute effective winter averages accounting for deep-winter months
+  const W = params.winterMonths;
+  const deepWinterMonths = (() => {
+    let n = 0;
+    for (let wm = 1; wm <= W; wm++) if (classifyWinterMonth(wm, W) === 'deep_winter') n++;
+    return n;
+  })();
+  const normalWinterMonths = W - deepWinterMonths;
+  const avgWinterFuelPerHH = (normalWinterMonths * params.fuelNeedsWinter + deepWinterMonths * params.fuelNeedsDeepWinter) / Math.max(1, W);
+  const avgFeedMult = (normalWinterMonths + deepWinterMonths * params.deepWinterFeedMultiplier) / Math.max(1, W);
+
   const kcalNeed  = getAnnualKcalRequirement(params) * riskFactor;
-  const fuelNeed  = params.households * params.fuelNeedsWinter * params.winterMonths * riskFactor;
+  const fuelNeed  = params.households * avgWinterFuelPerHH * W * riskFactor;
   const sheepNeed = Math.ceil((totalPeopleFromParams(params) * params.clothingNeedWoolLbs * riskFactor) / Math.max(0.000001, params.woolPerSheep));
 
   const oxen  = Math.max(0, Math.ceil(params.households * params.animalsPerHH.oxen));
@@ -1212,8 +1269,8 @@ export function planVillageResources(params: SimParams, mode: PlannerMode = "min
   const animalKcal = (cows * cowDairyKcalPerMonth + (sheep * 0.5) * sheepDairyKcalPerMonth) * dairyMonthsEquivalent
     + (sheep * 0.1 * params.production.sheepMeatKcal);
   const cropKcalNeed  = Math.max(0, kcalNeed - animalKcal);
-  const oatsFeedNeed  = ((oxen * params.feedNeedsWinter.oxenOats) + (cows * params.feedNeedsWinter.cowOats)) * params.winterMonths * riskFactor;
-  const hayFeedNeed   = ((oxen * params.feedNeedsWinter.oxenHay) + (cows * params.feedNeedsWinter.cowHay) + (sheep * params.feedNeedsWinter.sheepHay)) * params.winterMonths * riskFactor;
+  const oatsFeedNeed  = ((oxen * params.feedNeedsWinter.oxenOats) + (cows * params.feedNeedsWinter.cowOats)) * W * avgFeedMult * riskFactor;
+  const hayFeedNeed   = ((oxen * params.feedNeedsWinter.oxenHay) + (cows * params.feedNeedsWinter.cowHay) + (sheep * params.feedNeedsWinter.sheepHay)) * W * avgFeedMult * riskFactor;
 
   const barleyShareTarget = 0.10;
   const w = wheatKcalPerAcre;
