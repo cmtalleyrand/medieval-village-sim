@@ -101,6 +101,9 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
   );
   const totalCattle = params.households * (params.animalsPerHH.oxen + params.animalsPerHH.cows);
   const totalSheep = params.households * params.animalsPerHH.sheep;
+  const sheepRams = totalSheep * 0.2;
+  const sheepEwes = totalSheep * 0.5;
+  const sheepLambs = totalSheep * 0.3;
   const plannerReport = useMemo(() => planVillageResources(params, 'fixed-total-land'), [params]);
   const barleySharePct = Math.max(0, (plannerReport.slacks.barleyLower + 0.10) * 100);
   const feedMargin = Math.min(plannerReport.slacks.oatsFeed, plannerReport.slacks.hayFeed);
@@ -414,19 +417,28 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
               </div>
             </Subsection>
 
-            <Subsection icon={<Users className="w-4 h-4" />} title="Household Composition">
+            <Subsection icon={<Users className="w-4 h-4" />} title="Initial Population (Total Village)">
               <div className="grid grid-cols-3 gap-3">
-                <NumberField step={0.1} label="Males" value={params.peoplePerHH.male} onChange={v => setNested('peoplePerHH', 'male', v)} onCommit={commitParams} />
-                <NumberField step={0.1} label="Females" value={params.peoplePerHH.female} onChange={v => setNested('peoplePerHH', 'female', v)} onCommit={commitParams} />
-                <NumberField step={0.1} label="Children" value={params.peoplePerHH.child} onChange={v => setNested('peoplePerHH', 'child', v)} onCommit={commitParams} />
+                <NumberField step={1} label="Men" value={params.peoplePerHH.male * params.households} onChange={v => setNested('peoplePerHH', 'male', v / Math.max(1, params.households))} onCommit={commitParams} />
+                <NumberField step={1} label="Women" value={params.peoplePerHH.female * params.households} onChange={v => setNested('peoplePerHH', 'female', v / Math.max(1, params.households))} onCommit={commitParams} />
+                <NumberField step={1} label="Children" value={params.peoplePerHH.child * params.households} onChange={v => setNested('peoplePerHH', 'child', v / Math.max(1, params.households))} onCommit={commitParams} />
               </div>
             </Subsection>
 
-            <Subsection icon={<Beef className="w-4 h-4" />} title="Livestock Stock">
+            <Subsection icon={<Beef className="w-4 h-4" />} title="Initial Cattle (Total Village)">
+              <div className="grid grid-cols-4 gap-3">
+                <NumberField step={1} label="Cows" value={params.animalsPerHH.cows * params.households} onChange={v => setNested('animalsPerHH', 'cows', v / Math.max(1, params.households))} onCommit={commitParams} />
+                <NumberField step={1} label="Oxen" value={params.animalsPerHH.oxen * params.households} onChange={v => setNested('animalsPerHH', 'oxen', v / Math.max(1, params.households))} onCommit={commitParams} />
+                <NumberField step={1} label="Bulls" value={params.bullsPerCow * params.animalsPerHH.cows * params.households} onChange={v => setField('bullsPerCow', (v / Math.max(1, params.animalsPerHH.cows * params.households)))} onCommit={commitParams} />
+                <NumberField step={1} label="Calves" value={0} onChange={() => {}} onCommit={commitParams} />
+              </div>
+            </Subsection>
+
+            <Subsection icon={<span className="text-[12px]">🐑</span>} title="Initial Sheep (Total Village)">
               <div className="grid grid-cols-3 gap-3">
-                <NumberField step={0.1} label="Oxen / HH" value={params.animalsPerHH.oxen} onChange={v => setNested('animalsPerHH', 'oxen', v)} onCommit={commitParams} />
-                <NumberField step={0.1} label="Cows / HH" value={params.animalsPerHH.cows} onChange={v => setNested('animalsPerHH', 'cows', v)} onCommit={commitParams} />
-                <NumberField step={0.1} label="Sheep / HH" value={params.animalsPerHH.sheep} onChange={v => setNested('animalsPerHH', 'sheep', v)} onCommit={commitParams} />
+                <NumberField step={1} label="Rams" value={sheepRams} onChange={v => setNested('animalsPerHH', 'sheep', ((v + sheepEwes + sheepLambs) / Math.max(1, params.households)))} onCommit={commitParams} />
+                <NumberField step={1} label="Ewes" value={sheepEwes} onChange={v => setNested('animalsPerHH', 'sheep', ((sheepRams + v + sheepLambs) / Math.max(1, params.households)))} onCommit={commitParams} />
+                <NumberField step={1} label="Lambs" value={sheepLambs} onChange={v => setNested('animalsPerHH', 'sheep', ((sheepRams + sheepEwes + v) / Math.max(1, params.households)))} onCommit={commitParams} />
               </div>
             </Subsection>
 
@@ -462,7 +474,6 @@ function NumberField({ label, value, onChange, onCommit, step, tooltip }: { labe
     <div>
       <Label tooltip={tooltip}>{label}</Label>
       <div className="mt-1 flex items-center gap-1.5">
-        <IconButton label={`Decrease ${label}`} onClick={() => applyDelta(-1)} className="w-7 h-7 text-[0.9rem]">−</IconButton>
         <input
           type="number"
           step={step}
@@ -472,7 +483,10 @@ function NumberField({ label, value, onChange, onCommit, step, tooltip }: { labe
           onKeyDown={e => e.key === 'Enter' && onCommit?.()}
           className="scriptorium flex-1"
         />
-        <IconButton label={`Increase ${label}`} onClick={() => applyDelta(1)} className="w-7 h-7 text-[0.9rem]">+</IconButton>
+        <div className="flex items-center gap-1">
+          <IconButton label={`Decrease ${label}`} onClick={() => applyDelta(-1)} className="w-5 h-5 text-[0.75rem]">−</IconButton>
+          <IconButton label={`Increase ${label}`} onClick={() => applyDelta(1)} className="w-5 h-5 text-[0.75rem]">+</IconButton>
+        </div>
       </div>
     </div>
   );
