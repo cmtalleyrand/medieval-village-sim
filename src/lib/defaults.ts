@@ -45,12 +45,13 @@ export const DEFAULTS: SimParams = {
     cowHay: 0.5, 
     sheepHay: 0.1 
   },
-  production: { 
-    cowDairyKcal: 35000,   // Per producing cow per month
-    sheepDairyKcal: 2500,  // Per producing sheep per month
-    sheepMeatKcal: 40000,  // Per sheep
-    cattleMeatAdult: 350000, // Per adult cow/ox culled
-    cattleMeatCalf: 75000  // Per calf culled
+  production: {
+    cowDairyLitresPerMonth: 60,    // Litres of milk per lactating cow per month at peak (post-weaning)
+    sheepDairyLitresPerMonth: 4,   // Litres per lactating ewe per month at peak
+    milkKcalPerLitre: 600,         // kcal per litre (cow and sheep milk similar energy density)
+    sheepMeatKcal: 40000,          // kcal per sheep culled
+    cattleMeatAdult: 350000,       // kcal per adult cow/ox culled
+    cattleMeatCalf: 75000,         // kcal per calf culled
   },
   cropStats: {
     wheat: { kcalPerBu: 90000, seedRate: 2 }, // 60 lbs * 1500 kcal

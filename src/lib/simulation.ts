@@ -39,7 +39,14 @@ export interface SimParams {
   kcalPerDay: { male: number, female: number, child: number };
   animalsPerHH: { oxen: number, cows: number, sheep: number };
   feedNeedsWinter: { oxenOats: number, oxenHay: number, cowOats: number, cowHay: number, sheepHay: number };
-  production: { cowDairyKcal: number, sheepDairyKcal: number, sheepMeatKcal: number, cattleMeatAdult: number, cattleMeatCalf: number };
+  production: {
+    cowDairyLitresPerMonth: number;    // litres of milk per lactating cow per month (peak)
+    sheepDairyLitresPerMonth: number;  // litres of milk per lactating ewe per month (peak)
+    milkKcalPerLitre: number;          // kcal per litre of milk (cow and sheep similar)
+    sheepMeatKcal: number;
+    cattleMeatAdult: number;
+    cattleMeatCalf: number;
+  };
   cropStats: {
     wheat: { kcalPerBu: number, seedRate: number };
     barley: { kcalPerBu: number, seedRate: number };
@@ -131,16 +138,17 @@ const HAY_GROWTH_RATE: Record<SeasonType, number> = {
 };
 
 // ── Crop maturity (summer-equivalent growth units) ────────────────────────────
-// Calibrated to medieval English harvest calendar (7-month growing season):
-//   Barley: sown April, harvested ~July  → 3×0.7 + ~0.5×1.0 ≈ 2.5 units
-//   Oats:   sown April, harvested ~Aug   → 3×0.7 + ~1.0×1.0 ≈ 3.0 units
-//   Wheat:  autumn-sown, dormant over winter, harvested ~late July
-//           → 1 autumn month pre-dormancy (0.7) + 3 spring (2.1) + ~0.7 long_summer = 3.5
+// Calibrated to medieval English harvest calendar (G=7: spring=3, long_summer=1, autumn=3):
+//   Barley: harvested end of long_summer → 3×0.7 + 1×1.0 = 3.1 → maturity 3.0
+//   Oats:   harvested first autumn month → 3×0.7 + 1×1.0 + 1×0.7 = 3.8 → maturity 3.5
+//   Wheat:  autumn-sown, dormant over winter, harvested ~first or second autumn month of yr2
+//           → pre-dormancy 3×0.7=2.1; resumes spring 3×0.7=2.1; long_summer 1.0 → 5.2 at
+//           long_summer end; maturity 3.5, late-bonus window harvests in first autumn (delta≈2.4)
 
 const CROP_MATURITY: Record<'wheat' | 'barley' | 'oats', number> = {
   wheat: 3.5,
-  barley: 2.5,
-  oats: 3.0,
+  barley: 3.0,
+  oats: 3.5,
 };
 
 const HAY_FIRST_CUT_THRESHOLD = 1.0;
@@ -156,28 +164,25 @@ const EWE_GESTATION = 5;
 const EWE_LACTATION_MAX = 4;
 const EWE_POSTPARTUM_INFERTILE = 2;
 
-// Minimum months from parturition before next conception is biologically possible
-const COW_MIN_CYCLE = COW_GESTATION + COW_POSTPARTUM_INFERTILE;  // 11 months
-const EWE_MIN_CYCLE = EWE_GESTATION + EWE_POSTPARTUM_INFERTILE;  // 7 months
+// Target inter-parturition interval: annual cycle for both species (12 months).
+// Biological minimum would be COW_GESTATION+COW_POSTPARTUM_INFERTILE=11 and
+// EWE_GESTATION+EWE_POSTPARTUM_INFERTILE=7, but medieval practice was once-a-year
+// calving/lambing. For two staggered cohorts half the herd can be set to cycle
+// offset by 6 months (initialise half with monthsSinceParturition = 6 vs. 0).
+const COW_MIN_CYCLE = 12;
+const EWE_MIN_CYCLE = 12;
 
 // ── Land fertility ─────────────────────────────────────────────────────────────
-// Monthly model: depletion per growth-unit accumulated by crop; recovery per
-// uncropped growth-unit-equivalent (seasonally weighted, applies to ALL uncropped
-// periods including winter at 0.3 rate). Dormant wheat: no depletion, no recovery.
+// Monthly model (applied in processParcel and the fallow branch of each forEach):
+//   Cropped month:  fertility -= d × growthRate[season]
+//   Fallow month:   fertility += r × growthRate[season] × (1 - fertility)
+//   Winter fallow:  same formula with growthRate = 0.3
+//   Dormant wheat:  no change (not depleting, not recovering)
 //
-// Calibration from 3-field rotation (G=7, W=5):
-//   Total depletion per cycle (at-maturity harvest): wheat 3.5d + barley 2.5d = 6.0d
-//   Total uncropped GU-equiv per cycle: 4.5 (fallow growing) + 2.1+1.5 (wheat year)
-//     + 2.1+1.5 (barley year) = 11.7
-//   Equilibrium: 6.0d = 11.7 × r × (1-f_eq) → with d=0.04, r=0.08: f_eq ≈ 0.75
-//   Crop fertility during active growing ≈ 0.66–0.83 oscillation; planner uses 0.70.
-//
-//   d = 0.04: wheat depletes 3.5×0.04=14% of max fertility per crop; consistent with
-//     medieval yields removing ~12–15% of topsoil N per crop at low-input farming.
-//   r = 0.08: fallow summer-month recovers r×(1-f)≈2.4% per month at f=0.70; across
-//     a full fallow growing season (~5.2 GU-equiv) recovers ~12% — consistent with
-//     soil N mineralization data for unmanured temperate fallow (30–50 kg N/ha/yr
-//     against topsoil stock ~120 kg N/ha).
+// Calibration — 3-field rotation, G=7, W=5, crops at maturity (wheat 3.5, barley 3.0):
+//   Depletion/cycle: wheat 3.5d + barley 3.0d = 6.5d
+//   Recovery GU-equiv/cycle: fallow season ≈5.2 + wheat uncropped 3.6 + barley uncropped 3.6 ≈12.4
+//   Equilibrium 6.5d = 12.4 × r × (1-f*) → d=0.04, r=0.08 → f* ≈ 0.74; planner uses 0.70.
 
 const FERTILITY_DEPLETION_RATE = 0.04;  // d: per growth-unit accumulated
 const FERTILITY_RECOVERY_RATE  = 0.08;  // r: per uncropped GU-equiv
@@ -310,16 +315,19 @@ function shouldHarvestEarlyForResow(
   return earlyYield + resowYield > waitYield;
 }
 
-function cowMilkKcal(lactMonth: number, peakKcal: number): number {
-  // Months 1-2: calf nurses; no milk available to humans
-  // Month 3: peak (post-weaning); linear decline to dry at COW_LACTATION_MAX
+// Returns kcal/month. Months 1-2: calf nurses, no human milk. Month 3: peak post-weaning.
+// Linear decline to dry at COW_LACTATION_MAX.
+function cowMilkKcal(lactMonth: number, peakLitres: number, kcalPerLitre: number): number {
   if (lactMonth <= COW_CALF_WEAN_MONTHS || lactMonth > COW_LACTATION_MAX) return 0;
+  const peakKcal = peakLitres * kcalPerLitre;
   if (lactMonth === COW_CALF_WEAN_MONTHS + 1) return peakKcal;
   return peakKcal * (1 - (lactMonth - (COW_CALF_WEAN_MONTHS + 1)) / (COW_LACTATION_MAX - (COW_CALF_WEAN_MONTHS + 1)));
 }
 
-function eweMilkKcal(lactMonth: number, peakKcal: number): number {
+// Ewe milk: first 2 months full, months 3-4 half, then dry.
+function eweMilkKcal(lactMonth: number, peakLitres: number, kcalPerLitre: number): number {
   if (lactMonth <= 0 || lactMonth > EWE_LACTATION_MAX) return 0;
+  const peakKcal = peakLitres * kcalPerLitre;
   return lactMonth <= 2 ? peakKcal : peakKcal * 0.5;
 }
 
@@ -833,12 +841,14 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
 
           // Pre-winter food planning: cull sheep to cover projected winter shortfall
           const projWinterOats = (totalOxen * params.feedNeedsWinter.oxenOats + totalCows * params.feedNeedsWinter.cowOats) * W;
+          const cowDairyKcalPeak = params.production.cowDairyLitresPerMonth * params.production.milkKcalPerLitre;
+          const sheepDairyKcalPeak = params.production.sheepDairyLitresPerMonth * params.production.milkKcalPerLitre;
           const projCowDairy = herd.reduce((s, c) => {
             if (c.type !== 'cow') return s;
             const rate = c.ageMonths >= 48 ? 1 : c.ageMonths >= 36 ? 0.5 : 0;
-            return s + params.production.cowDairyKcal * rate * 0.35;
+            return s + cowDairyKcalPeak * rate * 0.35;
           }, 0) * W;
-          const projSheepDairy = flock.filter(s => s.sex === 'ewe').length * 0.5 * params.production.sheepDairyKcal * 0.35 * W;
+          const projSheepDairy = flock.filter(s => s.sex === 'ewe').length * 0.5 * sheepDairyKcalPeak * 0.35 * W;
           const humanWheatKcal  = Math.max(0, wheatStocks - seedWheat) * params.cropStats.wheat.kcalPerBu;
           const humanBarleyKcal = barleyStocks * params.cropStats.barley.kcalPerBu;
           const humanOatsKcal   = Math.max(0, oatStocks - seedOats - projWinterOats) * params.cropStats.oats.kcalPerBu;
@@ -875,13 +885,13 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         let dairyKcal = 0;
         herd.forEach(c => {
           if (c.type === 'cow') {
-            const raw = cowMilkKcal(c.lactationMonths, params.production.cowDairyKcal);
+            const raw = cowMilkKcal(c.lactationMonths, params.production.cowDairyLitresPerMonth, params.production.milkKcalPerLitre);
             dairyKcal += isWinter ? raw * 0.35 : raw;
           }
         });
         flock.forEach(s => {
           if (s.sex === 'ewe') {
-            const raw = eweMilkKcal(s.lactationMonths, params.production.sheepDairyKcal);
+            const raw = eweMilkKcal(s.lactationMonths, params.production.sheepDairyLitresPerMonth, params.production.milkKcalPerLitre);
             dairyKcal += isWinter ? raw * 0.35 : raw;
           }
         });
@@ -1197,7 +1207,9 @@ export function planVillageResources(params: SimParams, mode: PlannerMode = "min
   const sheep = sheepNeed;
 
   const dairyMonthsEquivalent = getDairyMonthsEquivalent(params.winterMonths);
-  const animalKcal = (cows * params.production.cowDairyKcal + (sheep * 0.5) * params.production.sheepDairyKcal) * dairyMonthsEquivalent
+  const cowDairyKcalPerMonth = params.production.cowDairyLitresPerMonth * params.production.milkKcalPerLitre;
+  const sheepDairyKcalPerMonth = params.production.sheepDairyLitresPerMonth * params.production.milkKcalPerLitre;
+  const animalKcal = (cows * cowDairyKcalPerMonth + (sheep * 0.5) * sheepDairyKcalPerMonth) * dairyMonthsEquivalent
     + (sheep * 0.1 * params.production.sheepMeatKcal);
   const cropKcalNeed  = Math.max(0, kcalNeed - animalKcal);
   const oatsFeedNeed  = ((oxen * params.feedNeedsWinter.oxenOats) + (cows * params.feedNeedsWinter.cowOats)) * params.winterMonths * riskFactor;
