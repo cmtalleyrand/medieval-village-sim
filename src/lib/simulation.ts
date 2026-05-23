@@ -149,19 +149,39 @@ const HAY_REGROWTH_CUT_THRESHOLD = 2.0;
 // ── Livestock constants ───────────────────────────────────────────────────────
 
 const COW_GESTATION = 9;
-const COW_LACTATION_MAX = 10;
-const COW_CYCLE_LENGTH = 13; // months from parturition to next readiness: gestation(9)+rest(4)
+const COW_LACTATION_MAX = 10; // months; cow is dry ~10 months after calving
+const COW_POSTPARTUM_INFERTILE = 2; // months before cow can conceive again
+const COW_CALF_WEAN_MONTHS = 2;    // calf nurses for 2 months; human milk starts month 3
 const EWE_GESTATION = 5;
 const EWE_LACTATION_MAX = 4;
-const EWE_CYCLE_LENGTH = 12; // gestation(5)+lactation(4)+rest(3)
+const EWE_POSTPARTUM_INFERTILE = 2;
 
-// ── Land fertility ────────────────────────────────────────────────────────────
-// Three-field system calibration: 2 crop years then 1 fallow year.
-// D=0.08, R=0.60 → long-run equilibrium mean ≈ 0.79 (PLANNER_AVG_FERTILITY = 0.80 ✓)
+// Minimum months from parturition before next conception is biologically possible
+const COW_MIN_CYCLE = COW_GESTATION + COW_POSTPARTUM_INFERTILE;  // 11 months
+const EWE_MIN_CYCLE = EWE_GESTATION + EWE_POSTPARTUM_INFERTILE;  // 7 months
 
-const FERTILITY_DEPLETION = 0.08;
-const FERTILITY_FALLOW_RECOVERY_RATE = 0.60;
-const PLANNER_AVG_FERTILITY = 0.80;
+// ── Land fertility ─────────────────────────────────────────────────────────────
+// Monthly model: depletion per growth-unit accumulated by crop; recovery per
+// uncropped growth-unit-equivalent (seasonally weighted, applies to ALL uncropped
+// periods including winter at 0.3 rate). Dormant wheat: no depletion, no recovery.
+//
+// Calibration from 3-field rotation (G=7, W=5):
+//   Total depletion per cycle (at-maturity harvest): wheat 3.5d + barley 2.5d = 6.0d
+//   Total uncropped GU-equiv per cycle: 4.5 (fallow growing) + 2.1+1.5 (wheat year)
+//     + 2.1+1.5 (barley year) = 11.7
+//   Equilibrium: 6.0d = 11.7 × r × (1-f_eq) → with d=0.04, r=0.08: f_eq ≈ 0.75
+//   Crop fertility during active growing ≈ 0.66–0.83 oscillation; planner uses 0.70.
+//
+//   d = 0.04: wheat depletes 3.5×0.04=14% of max fertility per crop; consistent with
+//     medieval yields removing ~12–15% of topsoil N per crop at low-input farming.
+//   r = 0.08: fallow summer-month recovers r×(1-f)≈2.4% per month at f=0.70; across
+//     a full fallow growing season (~5.2 GU-equiv) recovers ~12% — consistent with
+//     soil N mineralization data for unmanured temperate fallow (30–50 kg N/ha/yr
+//     against topsoil stock ~120 kg N/ha).
+
+const FERTILITY_DEPLETION_RATE = 0.04;  // d: per growth-unit accumulated
+const FERTILITY_RECOVERY_RATE  = 0.08;  // r: per uncropped GU-equiv
+const PLANNER_AVG_FERTILITY    = 0.70;  // mean f during cropped periods at equilibrium
 
 // ── Wool shearing thresholds ──────────────────────────────────────────────────
 
@@ -252,9 +272,14 @@ export function randomizeYield(base: number, variabilityPct: number): number {
 }
 
 function harvestModifier(delta: number): number {
+  // delta < 0: early harvest penalty (0.85 per month short of maturity)
+  // delta 0→3: diminishing bonus (+5%, +3%, +2% per additional month, max 1.10 at +3)
+  // delta > 3: declining from peak
   if (delta < 0) return Math.pow(0.85, -delta);
-  if (delta <= 2) return 1.0 + delta * 0.05;
-  return 1.10 * Math.pow(0.90, delta - 2);
+  if (delta <= 1) return 1.0 + delta * 0.05;
+  if (delta <= 2) return 1.05 + (delta - 1) * 0.03;
+  if (delta <= 3) return 1.08 + (delta - 2) * 0.02;
+  return 1.10 * Math.pow(0.90, delta - 3);
 }
 
 // The one actual decision: should we harvest early to make room for a re-sow?
@@ -274,11 +299,11 @@ function shouldHarvestEarlyForResow(
 
   const resowGrowth = remainingGrowthPotential;
   const resowDelta = resowGrowth - mat;
-  const resowFertility = Math.max(fertilityFloor, parcel.fertility - FERTILITY_DEPLETION);
+  const resowFertility = Math.max(fertilityFloor, parcel.fertility - FERTILITY_DEPLETION_RATE * mat);
   const resowYield = parcel.acres * baseYield * resowFertility * harvestModifier(resowDelta);
 
   const waitDelta = remainingGrowthPotential >= unitsShort
-    ? Math.min(remainingGrowthPotential - unitsShort, 2) // best late bonus achievable
+    ? Math.min(remainingGrowthPotential - unitsShort, 3) // best late bonus achievable (peak at +3)
     : -(unitsShort - remainingGrowthPotential);           // season ends before maturity
   const waitYield = parcel.acres * baseYield * parcel.fertility * harvestModifier(waitDelta);
 
@@ -286,9 +311,11 @@ function shouldHarvestEarlyForResow(
 }
 
 function cowMilkKcal(lactMonth: number, peakKcal: number): number {
-  if (lactMonth <= 0 || lactMonth > COW_LACTATION_MAX) return 0;
-  if (lactMonth <= 2) return peakKcal;
-  return peakKcal * (1 - (lactMonth - 2) / (COW_LACTATION_MAX - 2));
+  // Months 1-2: calf nurses; no milk available to humans
+  // Month 3: peak (post-weaning); linear decline to dry at COW_LACTATION_MAX
+  if (lactMonth <= COW_CALF_WEAN_MONTHS || lactMonth > COW_LACTATION_MAX) return 0;
+  if (lactMonth === COW_CALF_WEAN_MONTHS + 1) return peakKcal;
+  return peakKcal * (1 - (lactMonth - (COW_CALF_WEAN_MONTHS + 1)) / (COW_LACTATION_MAX - (COW_CALF_WEAN_MONTHS + 1)));
 }
 
 function eweMilkKcal(lactMonth: number, peakKcal: number): number {
@@ -339,8 +366,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   const totalBulls = Math.max(1, Math.round(totalCows * params.bullsPerCow));
   const initialSheepCount = params.households * params.animalsPerHH.sheep;
 
-  // Clothing floor: minimum sheep needed to produce enough wool for everyone
-  const clothingFloor = Math.ceil(totalPeople * params.clothingNeedWoolLbs / params.woolPerSheep);
+  // Static floor used for hay-shortage emergencies (conservative overestimate)
+  const clothingFloor = Math.max(5, Math.ceil(totalPeople * params.clothingNeedWoolLbs / params.woolPerSheep));
 
   const monthlyWoolToCloth = params.households * params.peoplePerHH.female *
     (householdPeople * params.clothingNeedWoolLbs * 1.5 / 12);
@@ -371,9 +398,9 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
     // ── Initial cattle herd ──
     let herd: Cattle[] = [];
     for (let j = 0; j < totalBulls; j++)
-      herd.push({ type: 'bull', ageMonths: 36 + Math.floor(Math.random() * 60), pregnancyMonths: 0, lactationMonths: 0, monthsSinceParturition: COW_CYCLE_LENGTH });
+      herd.push({ type: 'bull', ageMonths: 36 + Math.floor(Math.random() * 60), pregnancyMonths: 0, lactationMonths: 0, monthsSinceParturition: COW_MIN_CYCLE });
     for (let j = 0; j < totalCows; j++)
-      herd.push({ type: 'cow', ageMonths: 36 + Math.floor(Math.random() * 70), pregnancyMonths: 0, lactationMonths: 0, monthsSinceParturition: Math.floor(Math.random() * COW_CYCLE_LENGTH) });
+      herd.push({ type: 'cow', ageMonths: 36 + Math.floor(Math.random() * 70), pregnancyMonths: 0, lactationMonths: 0, monthsSinceParturition: Math.floor(Math.random() * COW_MIN_CYCLE) });
     for (let j = 0; j < totalOxen; j++)
       herd.push({ type: 'ox', ageMonths: 36 + Math.floor(Math.random() * 70), pregnancyMonths: 0, lactationMonths: 0, monthsSinceParturition: 0 });
     for (let ageYears = 0; ageYears < 3; ageYears++) {
@@ -392,7 +419,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         ageMonths: 6 + Math.floor(Math.random() * 42),
         pregnancyMonths: 0,
         lactationMonths: 0,
-        monthsSinceParturition: Math.floor(Math.random() * EWE_CYCLE_LENGTH),
+        monthsSinceParturition: Math.floor(Math.random() * EWE_MIN_CYCLE),
         woolGrowthUnits: Math.random() * WOOL_SHEAR_ELIGIBLE,
       });
     }
@@ -481,7 +508,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
               }
               // Breeding
               if (ramPresent && c.pregnancyMonths === 0 && c.ageMonths >= 24
-                  && c.monthsSinceParturition >= COW_CYCLE_LENGTH) {
+                  && c.monthsSinceParturition >= COW_MIN_CYCLE) {
                 if (Math.random() < 0.85) c.pregnancyMonths = 1;
               }
             }
@@ -506,7 +533,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
               }
               // Breeding
               if (ramCount > 0 && s.pregnancyMonths === 0 && s.ageMonths >= 12
-                  && s.monthsSinceParturition >= EWE_CYCLE_LENGTH) {
+                  && s.monthsSinceParturition >= EWE_MIN_CYCLE) {
                 if (Math.random() < 0.85) s.pregnancyMonths = 1;
               }
             }
@@ -583,7 +610,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
           const delta = parcel.growthUnits - CROP_MATURITY[parcel.type];
           const mod = harvestModifier(delta);
           const harvested = parcel.acres * baseYield * parcel.fertility * mod * titheFactor;
-          parcel.fertility = Math.max(fertilityFloor, parcel.fertility - FERTILITY_DEPLETION);
+          // Fertility depletion is applied monthly during growth accumulation, not at harvest
           parcel.growthUnits = 0;
           parcel.harvested = true;
           return harvested;
@@ -616,12 +643,13 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
 
           if (parcel.dormant) return;
 
-          // Accumulate growth
+          // Accumulate growth and apply proportional monthly fertility depletion
           parcel.growthUnits += SEASON_GROWTH_RATE[season];
+          parcel.fertility = Math.max(fertilityFloor, parcel.fertility - FERTILITY_DEPLETION_RATE * SEASON_GROWTH_RATE[season]);
 
-          // Harvest decision: past maturity + 2 months → must harvest
+          // Past late-bonus window (delta > 3): bonus declining, harvest immediately
           const delta = parcel.growthUnits - CROP_MATURITY[parcel.type];
-          if (delta > 2) {
+          if (delta > 3) {
             addHarvest(parcel.type, doHarvestParcel(parcel, baseYield));
             return;
           }
@@ -647,20 +675,21 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         const isAutumnMonth = season === 'autumn';
         wheatParcels.forEach(p => {
           const ph = p as CropParcel & { harvested?: boolean };
-          if (ph.harvested || (ph.growthUnits === 0 && !ph.dormant)) {
-            if (isAutumnMonth) {
-              // Plant wheat — seed cost
+          const isIdle = ph.harvested || (ph.growthUnits === 0 && !ph.dormant);
+          if (isIdle) {
+            if (!isWinter && isAutumnMonth) {
+              // Plant wheat and start growing this month
               const sW = Math.min(wheatStocks, p.acres * params.cropStats.wheat.seedRate);
               wheatStocks -= sW; fSeed += sW;
               ph.harvested = false;
               ph.growthUnits = 0;
               ph.dormant = false;
               ph.isAutumnSown = true;
-            }
-            // Apply fallow recovery if parcel sat idle this growing season
-            if (isLastGrowingMonth && ph.growthUnits === 0 && !ph.dormant) {
-              p.fertility += FERTILITY_FALLOW_RECOVERY_RATE * (1 - p.fertility);
-              p.fertility = Math.min(1.0, p.fertility);
+              processParcel(ph, wBaseYield);
+            } else {
+              // Fallow: monthly fertility recovery (dormant wheat is never isIdle, handled below)
+              const recoveryRate = isWinter ? 0.3 : SEASON_GROWTH_RATE[season];
+              p.fertility = Math.min(1.0, p.fertility + FERTILITY_RECOVERY_RATE * recoveryRate * (1 - p.fertility));
             }
           } else {
             processParcel(ph, wBaseYield);
@@ -669,17 +698,19 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
 
         barleyParcels.forEach(p => {
           const ph = p as CropParcel & { harvested?: boolean };
-          if (ph.harvested || ph.growthUnits === 0) {
-            if (isFirstGrowingMonth) {
-              // Spring sowing
+          const isIdle = ph.harvested || ph.growthUnits === 0;
+          if (isIdle) {
+            if (!isWinter && isFirstGrowingMonth) {
+              // Spring sowing — start growing this month
               const sB = Math.min(barleyStocks, p.acres * params.cropStats.barley.seedRate);
               barleyStocks -= sB; fSeed += sB;
               ph.harvested = false;
               ph.growthUnits = 0;
-            }
-            if (isLastGrowingMonth && ph.growthUnits === 0) {
-              p.fertility += FERTILITY_FALLOW_RECOVERY_RATE * (1 - p.fertility);
-              p.fertility = Math.min(1.0, p.fertility);
+              processParcel(ph, bBaseYield);
+            } else {
+              // Fallow: monthly fertility recovery
+              const recoveryRate = isWinter ? 0.3 : SEASON_GROWTH_RATE[season];
+              p.fertility = Math.min(1.0, p.fertility + FERTILITY_RECOVERY_RATE * recoveryRate * (1 - p.fertility));
             }
           } else {
             processParcel(ph, bBaseYield);
@@ -688,29 +719,33 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
 
         oatParcels.forEach(p => {
           const ph = p as CropParcel & { harvested?: boolean };
-          if (ph.harvested || ph.growthUnits === 0) {
-            if (isFirstGrowingMonth) {
+          const isIdle = ph.harvested || ph.growthUnits === 0;
+          if (isIdle) {
+            if (!isWinter && isFirstGrowingMonth) {
+              // Spring sowing — start growing this month
               const sO = Math.min(oatStocks, p.acres * params.cropStats.oats.seedRate);
               oatStocks -= sO; fSeed += sO;
               ph.harvested = false;
               ph.growthUnits = 0;
-            }
-            if (isLastGrowingMonth && ph.growthUnits === 0) {
-              p.fertility += FERTILITY_FALLOW_RECOVERY_RATE * (1 - p.fertility);
-              p.fertility = Math.min(1.0, p.fertility);
+              processParcel(ph, oBaseYield);
+            } else {
+              // Fallow: monthly fertility recovery
+              const recoveryRate = isWinter ? 0.3 : SEASON_GROWTH_RATE[season];
+              p.fertility = Math.min(1.0, p.fertility + FERTILITY_RECOVERY_RATE * recoveryRate * (1 - p.fertility));
             }
           } else {
             processParcel(ph, oBaseYield);
           }
         });
 
-        // Force harvest any non-dormant parcel at end of growing season
+        // Force harvest any non-dormant parcel at end of growing season.
+        // Exception: autumn-sown wheat below maturity should overwinter, not be harvested.
         if (isLastGrowingMonth) {
           [...wheatParcels, ...barleyParcels, ...oatParcels].forEach(p => {
             const ph = p as CropParcel & { harvested?: boolean };
-            if (!ph.dormant && !ph.harvested && ph.growthUnits > 0) {
-              addHarvest(p.type, doHarvestParcel(p, p.type === 'wheat' ? wBaseYield : p.type === 'barley' ? bBaseYield : oBaseYield));
-            }
+            if (ph.dormant || ph.harvested || ph.growthUnits === 0) return;
+            if (ph.isAutumnSown && ph.growthUnits < CROP_MATURITY[ph.type]) return;
+            addHarvest(p.type, doHarvestParcel(p, p.type === 'wheat' ? wBaseYield : p.type === 'barley' ? bBaseYield : oBaseYield));
           });
           // Reset hay for next season
           hayGrowthUnits = 0;
@@ -733,6 +768,17 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
 
         // ── Pre-winter culling ──
         if (isLastGrowingMonth) {
+          // Dynamic clothing floor: accounts for long seasons where each sheep produces more wool.
+          // Wool can be overwintered at zero cost; only sheep that produce *additional* wool are needed.
+          const totalWoolGrowthNextCycle = (() => {
+            let s = W * WOOL_GROWTH_RATE['winter'];
+            for (let m = 1; m <= G; m++) s += WOOL_GROWTH_RATE[classifyMonth(m, G)];
+            return s;
+          })();
+          const projWoolPerSheepPerCycle = (totalWoolGrowthNextCycle / WOOL_SHEAR_ELIGIBLE) * params.woolPerSheep;
+          const clothingNeedNextCycle = totalPeople * params.clothingNeedWoolLbs * (G + W) / 12;
+          const dynFloor = Math.max(3, Math.ceil(Math.max(0, clothingNeedNextCycle - woolStocks) / Math.max(0.001, projWoolPerSheepPerCycle)));
+
           // Cattle phase 1: remove past-prime animals
           const survivingPhase1: Cattle[] = [];
           for (const c of herd) {
@@ -770,15 +816,14 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             ...youngBulls.slice(0, keepBulls),
           ];
 
-          // Sheep: remove surplus above initialSheepCount first
+          // Sheep: remove surplus above initialSheepCount, never below dynFloor
           const surplusSheep = Math.max(0, flock.length - initialSheepCount);
           if (surplusSheep > 0) {
-            // Cull oldest ewes past peak (60+ months), then oldest rams beyond 1:8 ratio
             flock.sort((a, b) => b.ageMonths - a.ageMonths);
             let culled = 0;
             flock = flock.filter(s => {
               if (culled >= surplusSheep) return true;
-              if (flock.length - culled <= clothingFloor) return true;
+              if (flock.length - culled <= dynFloor) return true;
               culled++;
               meatStocks += params.production.sheepMeatKcal;
               fPreWinterSheepCull++;
@@ -803,7 +848,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
 
           if (shortfall > 0) {
             const needCull = Math.ceil(shortfall / params.production.sheepMeatKcal);
-            const canCull = Math.max(0, flock.length - clothingFloor);
+            const canCull = Math.max(0, flock.length - dynFloor);
             const extraCull = Math.min(canCull, needCull);
             flock.sort((a, b) => b.ageMonths - a.ageMonths);
             flock.splice(0, extraCull);
