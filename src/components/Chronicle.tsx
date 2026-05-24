@@ -89,7 +89,7 @@ export function Chronicle({ history, params }: ChronicleProps) {
       {/* Top scene + playhead */}
       <Card>
         <CardHeader
-          title={`Chronicle of Year ${cur.year}`}
+          title={`Cycle ${cur.cycle} · Year ${cur.year} · Month ${monthInYear}`}
           subtitle={
             monthInYear === 1 ? 'Candlemas · the plough turns, seed goes into the earth' :
             isShearing ? 'Whitsuntide · shearing and the first warmth of summer' :

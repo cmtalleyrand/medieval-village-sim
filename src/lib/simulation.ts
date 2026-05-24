@@ -57,8 +57,9 @@ export interface SimParams {
 }
 
 export interface MonthHistory {
-  month: number;
-  year: number;
+  month: number;   // absolute month index across all years (used as chart X-axis)
+  year: number;    // year within the recorded cycle (1 to YEARS_PER_ITERATION)
+  cycle: number;   // which Monte Carlo iteration this chronicle was recorded from (1-based)
   wheat: number;
   barley: number;
   oats: number;
@@ -124,20 +125,43 @@ function classifyMonth(growingMonth: number, G: number): SeasonType {
 }
 
 // Long winters develop a frozen "deep winter" core with no soil recovery.
-// normalEnd months on each side are normal (shoulder) winter; the rest is deep.
-// Pattern: W<6 → all normal; W 6-11 → 2 each end; W 12-17 → 3; W 18-23 → 4; …
-// Formula: normalEnd = floor(W/6)+1 for W≥6, else ceil(W/2) (whole winter normal).
-function classifyWinterMonth(winterMonth: number, W: number): 'winter' | 'deep_winter' {
-  if (W < 6) return 'winter';
-  const normalEnd = Math.floor(W / 6) + 1;
-  if (winterMonth <= normalEnd || winterMonth > W - normalEnd) return 'winter';
+// Shoulder months (normal winter) on each side of the core are specified as:
+//   winterMonths <  6: no deep winter at all
+//   winterMonths  6– 8: 2 normal start, 2 normal end
+//   winterMonths  9–11: 3 normal start, 2 normal end
+//   winterMonths 12–13: 3 normal start, 3 normal end
+//   winterMonths 14–15: 4 normal start, 3 normal end
+//   winterMonths 16–17: 4 normal start, 4 normal end
+//   winterMonths 18–19: 5 normal start, 4 normal end
+//   winterMonths >= 20: stabilises at ~half normal (floor(winterMonths/4) each end)
+function classifyWinterMonth(winterMonth: number, winterMonths: number): 'winter' | 'deep_winter' {
+  if (winterMonths < 6) return 'winter';
+  let startNormal: number, endNormal: number;
+  if      (winterMonths <=  8) { startNormal = 2; endNormal = 2; }
+  else if (winterMonths <= 11) { startNormal = 3; endNormal = 2; }
+  else if (winterMonths <= 13) { startNormal = 3; endNormal = 3; }
+  else if (winterMonths <= 15) { startNormal = 4; endNormal = 3; }
+  else if (winterMonths <= 17) { startNormal = 4; endNormal = 4; }
+  else if (winterMonths <= 19) { startNormal = 5; endNormal = 4; }
+  else { startNormal = Math.floor(winterMonths / 4); endNormal = Math.floor(winterMonths / 4); }
+  if (winterMonth <= startNormal || winterMonth > winterMonths - endNormal) return 'winter';
   return 'deep_winter';
 }
 
 // ── Growth rates ──────────────────────────────────────────────────────────────
 
+// Generic season growth rate — used for hay, fallow-recovery timing, and remaining-potential calculations.
 const SEASON_GROWTH_RATE: Record<SeasonType, number> = {
   spring: 0.7, long_summer: 1.0, autumn: 0.7, winter: 0.0, deep_winter: 0.0,
+};
+
+// Per-crop growth rates. Wheat grows slowly through normal winter (it is sown in autumn
+// and overwinters in the ground); barley and oats do not survive winter and are always
+// harvested before winter begins.
+const CROP_GROWTH_RATE: Record<'wheat' | 'barley' | 'oats', Record<SeasonType, number>> = {
+  wheat:  { spring: 0.7, long_summer: 1.0, autumn: 0.7, winter: 0.15, deep_winter: 0.0 },
+  barley: { spring: 0.7, long_summer: 1.0, autumn: 0.7, winter: 0.0,  deep_winter: 0.0 },
+  oats:   { spring: 0.7, long_summer: 1.0, autumn: 0.7, winter: 0.0,  deep_winter: 0.0 },
 };
 
 const WOOL_GROWTH_RATE: Record<SeasonType, number> = {
@@ -156,28 +180,33 @@ const WINTER_FALLOW_RECOVERY: Record<'winter' | 'deep_winter', number> = {
   deep_winter: 0.0, // deep winter: ground frozen, no recovery
 };
 
-// ── Crop maturity and harvest window (summer-equivalent growth units) ─────────
-// Calibrated to medieval English harvest calendar (G=7: spring=3, long_summer=1, autumn=3):
-//   Wheat:  autumn-sown. Pre-dormancy 3 autumn months (2.1 GU) + resume spring (2.1) +
-//           long_summer (1.0) = 5.2 GU at end of long_summer. Maturity 3.5, delta=1.7 at
-//           long_summer end. harvestDeltaMax=1.5 → delta>1.5 fires in long_summer ✓
-//   Barley: sown spring. Spring (2.1) + long_summer (1.0) = 3.1 GU; end long_summer
-//           delta=0.1 < 0.5. First autumn: 3.8 GU, delta=0.8 > 0.5 → harvest ✓
-//   Oats:   same timing as barley — maturity 3.0, first-autumn harvest ✓
+// ── Crop maturity (summer-equivalent growth units) ───────────────────────────
+// Derived from historical medieval English harvest schedules:
+//   Wheat:  sown 2nd month of autumn; overwinters; harvested last month of summer.
+//           Accumulates: 2 autumn months (×0.7) + 3 mild-winter months (×0.15)
+//           + 3 spring months (×0.7) + 2 summer months (×1.0) = 5.95 GU.
+//   Oats:   sown 1st spring month; harvested last month of summer.
+//           Accumulates: 3 spring months (×0.7) + 2 summer months (×1.0) = 4.1 GU.
+//   Barley: sown 1st spring month; harvested 1st month of autumn.
+//           Accumulates: 3 spring (×0.7) + 2 summer (×1.0) + 1 autumn (×0.7) = 4.8 GU.
+// With the default 7 growing months and 5 winter months these crops mature roughly
+// 1–2 months later than the historical reference because the default has only 1
+// long_summer month (vs. 2 in the historical reference). This is expected: the GU
+// values capture biology, not a specific calendar configuration.
 
 const CROP_MATURITY: Record<'wheat' | 'barley' | 'oats', number> = {
-  wheat: 3.5,
-  barley: 3.0,
-  oats: 3.0,
+  wheat: 5.95,
+  barley: 4.80,
+  oats: 4.10,
 };
 
-// Maximum delta (GU past maturity) before harvest is forced.
-// Wheat: harvested at end of long_summer (short window, grain prone to shattering).
-// Barley/oats: harvested first autumn month (can dry briefly in the shock).
+// GU past maturity before harvest is forced.
+// Wheat:         ~1 long_summer month of drying on the stem (grain can shatter after that).
+// Barley/oats:   ~1 autumn month (can stand briefly in shocks to dry).
 const CROP_HARVEST_DELTA_MAX: Record<'wheat' | 'barley' | 'oats', number> = {
-  wheat: 1.5,
-  barley: 0.5,
-  oats: 0.5,
+  wheat: 1.0,
+  barley: 0.7,
+  oats: 0.7,
 };
 
 const HAY_FIRST_CUT_THRESHOLD = 1.0;
@@ -203,23 +232,26 @@ const EWE_MIN_CYCLE = 12;
 
 // ── Land fertility ─────────────────────────────────────────────────────────────
 // Monthly model:
-//   Cropped month:  fertility -= d × SEASON_GROWTH_RATE[season]
+//   Cropped month:  fertility -= d × CROP_GROWTH_RATE[type][season]
 //   Fallow month:   fertility += r × growthRate × (1 - fertility)
 //     growing season: growthRate = SEASON_GROWTH_RATE[season]
 //     winter fallow:  growthRate = WINTER_FALLOW_RECOVERY[season] (0.3 normal, 0.0 deep)
-//   Dormant wheat: no change
+//   Wheat in normal winter grows at 0.15, so its parcel is depleted (not recovered) that winter.
 //
-// Calibration — 3-field rotation, G=7 W=5, corrected harvest timing:
-//   Total cropped GU/cycle: wheat(5.2) + barley(3.8) = 9.0 GU  → depletion = 9.0d
-//   Total recovery GU-equiv/cycle:
-//     Year 1 fallow spring+summer (3.1) + Y1 winter dormant (0) + Y2 autumn post-wheat (2.1)
-//     + Y2 winter (1.5) + Y3 autumn post-barley (1.4) + Y3 winter (1.5) = 9.6 GU-equiv
-//   Equilibrium: 9.0d = 9.6 × r × (1-f*)
-//   With d=0.03, r=0.11: f* ≈ 0.75; planner uses 0.75 (mid-oscillation during crops).
+// Calibration — 3-field rotation, 7 growing months + 5 winter months:
+//   Wheat cycle depletion: (5.2 growing GU + 0.75 winter GU) × d = 5.95d
+//   Barley cycle depletion: 5.2 growing GU × d (no winter growth)
+//   Total depletion/cycle: 11.15d
+//   Recovery GU-equiv/cycle:
+//     wheat-year autumn fallow (2×0.7=1.4) + barley-year winter (5×0.3=1.5)
+//     + fallow-year growing (5.2) + fallow-year winter (1.5) = 9.6
+//     (wheat-year winter not counted — wheat is actively growing, depleting, not recovering)
+//   Equilibrium: 11.15 × 0.03 = 9.6 × 0.11 × (1-f*)  →  f* ≈ 0.68
+//   Planner uses 0.70 (slight upward buffer for oscillation high).
 
 const FERTILITY_DEPLETION_RATE = 0.03;  // d: per growth-unit accumulated by crop
 const FERTILITY_RECOVERY_RATE  = 0.11;  // r: per uncropped GU-equiv
-const PLANNER_AVG_FERTILITY    = 0.75;  // steady-state mean fertility at mid-oscillation
+const PLANNER_AVG_FERTILITY    = 0.70;  // steady-state mean fertility at mid-oscillation
 
 // ── Wool shearing thresholds ──────────────────────────────────────────────────
 
@@ -233,7 +265,8 @@ interface CropParcel {
   acres: number;
   fertility: number;
   growthUnits: number;
-  dormant: boolean;
+  // isAutumnSown: wheat is sown in autumn and grows through winter at reduced rate;
+  // spring crops (barley, oats) are always harvested before winter.
   isAutumnSown: boolean;
   harvested: boolean;
 }
@@ -466,19 +499,19 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
     }
 
     // ── Crop parcels ──
-    // Wheat parcels: autumn-sown, start unplanted (planted in first growing season's autumn)
-    // Barley/oats: spring-sown, start planted at beginning of first growing season
+    // Wheat: autumn-sown, overwinters in ground, starts unplanted (sown in first autumn).
+    // Barley/oats: spring-sown, always harvested before winter begins.
     let wheatParcels: CropParcel[] = [{
       type: 'wheat', acres: wAcresConst, fertility: initialFertility,
-      growthUnits: 0, dormant: false, isAutumnSown: true, harvested: false,
+      growthUnits: 0, isAutumnSown: true, harvested: false,
     }];
     let barleyParcels: CropParcel[] = [{
       type: 'barley', acres: bAcresConst, fertility: initialFertility,
-      growthUnits: 0, dormant: false, isAutumnSown: false, harvested: false,
+      growthUnits: 0, isAutumnSown: false, harvested: false,
     }];
     let oatParcels: CropParcel[] = [{
       type: 'oats', acres: oAcresConst, fertility: initialFertility,
-      growthUnits: 0, dormant: false, isAutumnSown: false, harvested: false,
+      growthUnits: 0, isAutumnSown: false, harvested: false,
     }];
 
     // Hay state
@@ -642,7 +675,9 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         if (isLastGrowingMonth) fuelStocks += woodlandFuelYield;
 
         // ── Crop parcel growth and harvest ──
-        // Compute remaining growth potential this growing season
+
+        // Remaining growing-season growth potential (used by re-sow decision for all crops;
+        // wheat also gains from winter months but those don't affect in-season re-sow logic).
         let remainingPotential = 0;
         if (!isWinter) {
           for (let m = growingMonth + 1; m <= G; m++) {
@@ -653,145 +688,137 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         const doHarvestParcel = (parcel: CropParcel, baseYield: number): number => {
           const delta = parcel.growthUnits - CROP_MATURITY[parcel.type];
           const mod = harvestModifier(delta);
-          const harvested = parcel.acres * baseYield * parcel.fertility * mod * titheFactor;
-          // Fertility depletion is applied monthly during growth accumulation, not at harvest
+          const amt = parcel.acres * baseYield * parcel.fertility * mod * titheFactor;
           parcel.growthUnits = 0;
           parcel.harvested = true;
-          return harvested;
+          return amt;
         };
 
-        // Helper: add harvested grain to stocks and flow records
         const addHarvest = (type: 'wheat' | 'barley' | 'oats', amount: number) => {
           if (type === 'wheat')  { wheatStocks  += amount; fHWheat  += amount; }
           if (type === 'barley') { barleyStocks += amount; fHBarley += amount; }
           if (type === 'oats')   { oatStocks    += amount; fHOats   += amount; }
         };
 
-        // Process each parcel type
-        const processParcel = (parcel: CropParcel & { harvested?: boolean }, baseYield: number) => {
+        // Process one parcel: accumulate growth (using per-crop rates), apply fertility depletion,
+        // and trigger harvest when appropriate.
+        // Wheat grows through normal winter at 0.15 rate; barley and oats have rate 0 in winter
+        // so this function is a no-op for them in winter (they're always harvested before winter).
+        const processParcel = (parcel: CropParcel, baseYield: number) => {
+          const cropRate = CROP_GROWTH_RATE[parcel.type][season];
+
           if (isWinter) {
-            if (parcel.isAutumnSown && !parcel.dormant && parcel.growthUnits > 0) {
-              // Wheat entering winter — go dormant
-              parcel.dormant = true;
-            } else if (!parcel.isAutumnSown && !parcel.dormant && parcel.growthUnits > 0) {
-              // Non-overwintering crop caught by winter — force harvest
-              addHarvest(parcel.type, doHarvestParcel(parcel, baseYield));
+            // Only wheat has a non-zero winter crop rate (0.15 in normal winter, 0 in deep winter).
+            if (cropRate > 0) {
+              parcel.growthUnits += cropRate;
+              parcel.fertility = Math.max(fertilityFloor, parcel.fertility - FERTILITY_DEPLETION_RATE * cropRate);
             }
+            // Harvest never happens in winter — fields can't be worked.
             return;
           }
 
-          // Resume dormant wheat at start of growing season
-          if (parcel.dormant && season === 'spring') {
-            parcel.dormant = false;
-          }
+          // Growing season: accumulate growth and apply fertility depletion
+          parcel.growthUnits += cropRate;
+          parcel.fertility = Math.max(fertilityFloor, parcel.fertility - FERTILITY_DEPLETION_RATE * cropRate);
 
-          if (parcel.dormant) return;
-
-          // Accumulate growth and apply proportional monthly fertility depletion
-          parcel.growthUnits += SEASON_GROWTH_RATE[season];
-          parcel.fertility = Math.max(fertilityFloor, parcel.fertility - FERTILITY_DEPLETION_RATE * SEASON_GROWTH_RATE[season]);
-
-          // Harvest when past the crop-specific delta-max (wheat: 1.5, barley/oats: 0.5)
           const delta = parcel.growthUnits - CROP_MATURITY[parcel.type];
+
+          // Force harvest once well past maturity (grain shatters or quality declines sharply)
           if (delta > CROP_HARVEST_DELTA_MAX[parcel.type]) {
             addHarvest(parcel.type, doHarvestParcel(parcel, baseYield));
             return;
           }
 
-          // At or past maturity: harvest if end of season or re-sow opportunity exists; else hold for late bonus
+          // At or past maturity: harvest if season is nearly over, or a re-sow is worthwhile
           if (delta >= 0) {
             const resowNeeded = shouldHarvestEarlyForResow(parcel, remainingPotential, baseYield, fertilityFloor);
             if (remainingPotential < 0.5 || resowNeeded) {
               addHarvest(parcel.type, doHarvestParcel(parcel, baseYield));
             }
-            // else hold for late bonus
+            // else hold for small late-ripening bonus
             return;
           }
 
-          // Before maturity: check if early harvest + re-sow is worthwhile
+          // Still immature: only harvest early if a re-sow is clearly more productive
           if (shouldHarvestEarlyForResow(parcel, remainingPotential, baseYield, fertilityFloor)) {
             addHarvest(parcel.type, doHarvestParcel(parcel, baseYield));
           }
-          // else hold
         };
 
-        // Wheat: sow in autumn if parcel has been harvested or is new and season is autumn
+        // Fallow recovery helper — called for parcels sitting idle this month
+        const falseRecovery = (parcel: CropParcel) => {
+          const recoveryRate = isWinter ? WINTER_FALLOW_RECOVERY[winterType] : SEASON_GROWTH_RATE[season];
+          parcel.fertility = Math.min(1.0, parcel.fertility + FERTILITY_RECOVERY_RATE * recoveryRate * (1 - parcel.fertility));
+        };
+
+        // Wheat: sown in autumn months; overwinters and grows through normal winter.
         const isAutumnMonth = season === 'autumn';
         wheatParcels.forEach(p => {
-          const ph = p as CropParcel & { harvested?: boolean };
-          const isIdle = ph.harvested || (ph.growthUnits === 0 && !ph.dormant);
+          const isIdle = p.harvested || p.growthUnits === 0;
           if (isIdle) {
             if (!isWinter && isAutumnMonth) {
-              // Plant wheat and start growing this month
+              // Sow wheat — it starts growing this month
               const sW = Math.min(wheatStocks, p.acres * params.cropStats.wheat.seedRate);
               wheatStocks -= sW; fSeed += sW;
-              ph.harvested = false;
-              ph.growthUnits = 0;
-              ph.dormant = false;
-              ph.isAutumnSown = true;
-              processParcel(ph, wBaseYield);
+              p.harvested = false;
+              p.growthUnits = 0;
+              p.isAutumnSown = true;
+              processParcel(p, wBaseYield);
             } else {
-              // Fallow: monthly fertility recovery (dormant wheat is never isIdle, handled below)
-              const recoveryRate = isWinter ? WINTER_FALLOW_RECOVERY[winterType] : SEASON_GROWTH_RATE[season];
-              p.fertility = Math.min(1.0, p.fertility + FERTILITY_RECOVERY_RATE * recoveryRate * (1 - p.fertility));
+              falseRecovery(p);
             }
           } else {
-            processParcel(ph, wBaseYield);
+            // Wheat is in ground — process growth (including during winter)
+            processParcel(p, wBaseYield);
           }
         });
 
+        // Barley: sown at first spring month; harvested before winter.
         barleyParcels.forEach(p => {
-          const ph = p as CropParcel & { harvested?: boolean };
-          const isIdle = ph.harvested || ph.growthUnits === 0;
+          const isIdle = p.harvested || p.growthUnits === 0;
           if (isIdle) {
             if (!isWinter && isFirstGrowingMonth) {
-              // Spring sowing — start growing this month
               const sB = Math.min(barleyStocks, p.acres * params.cropStats.barley.seedRate);
               barleyStocks -= sB; fSeed += sB;
-              ph.harvested = false;
-              ph.growthUnits = 0;
-              processParcel(ph, bBaseYield);
+              p.harvested = false;
+              p.growthUnits = 0;
+              processParcel(p, bBaseYield);
             } else {
-              // Fallow: monthly fertility recovery
-              const recoveryRate = isWinter ? WINTER_FALLOW_RECOVERY[winterType] : SEASON_GROWTH_RATE[season];
-              p.fertility = Math.min(1.0, p.fertility + FERTILITY_RECOVERY_RATE * recoveryRate * (1 - p.fertility));
+              falseRecovery(p);
             }
           } else {
-            processParcel(ph, bBaseYield);
+            processParcel(p, bBaseYield);
           }
         });
 
+        // Oats: sown at first spring month; harvested before winter.
         oatParcels.forEach(p => {
-          const ph = p as CropParcel & { harvested?: boolean };
-          const isIdle = ph.harvested || ph.growthUnits === 0;
+          const isIdle = p.harvested || p.growthUnits === 0;
           if (isIdle) {
             if (!isWinter && isFirstGrowingMonth) {
-              // Spring sowing — start growing this month
               const sO = Math.min(oatStocks, p.acres * params.cropStats.oats.seedRate);
               oatStocks -= sO; fSeed += sO;
-              ph.harvested = false;
-              ph.growthUnits = 0;
-              processParcel(ph, oBaseYield);
+              p.harvested = false;
+              p.growthUnits = 0;
+              processParcel(p, oBaseYield);
             } else {
-              // Fallow: monthly fertility recovery
-              const recoveryRate = isWinter ? WINTER_FALLOW_RECOVERY[winterType] : SEASON_GROWTH_RATE[season];
-              p.fertility = Math.min(1.0, p.fertility + FERTILITY_RECOVERY_RATE * recoveryRate * (1 - p.fertility));
+              falseRecovery(p);
             }
           } else {
-            processParcel(ph, oBaseYield);
+            processParcel(p, oBaseYield);
           }
         });
 
-        // Force harvest any non-dormant parcel at end of growing season.
-        // Exception: autumn-sown wheat below maturity should overwinter, not be harvested.
+        // At end of the growing season: force-harvest anything still standing.
+        // Wheat that is still below maturity overwinters — leave it in the ground.
+        // Barley and oats cannot survive winter and must be taken now regardless.
         if (isLastGrowingMonth) {
           [...wheatParcels, ...barleyParcels, ...oatParcels].forEach(p => {
-            const ph = p as CropParcel & { harvested?: boolean };
-            if (ph.dormant || ph.harvested || ph.growthUnits === 0) return;
-            if (ph.isAutumnSown && ph.growthUnits < CROP_MATURITY[ph.type]) return;
+            if (p.harvested || p.growthUnits === 0) return;
+            if (p.type === 'wheat' && p.growthUnits < CROP_MATURITY[p.type]) return;
             addHarvest(p.type, doHarvestParcel(p, p.type === 'wheat' ? wBaseYield : p.type === 'barley' ? bBaseYield : oBaseYield));
           });
-          // Reset hay for next season
+          // Reset hay accumulator for next growing season
           hayGrowthUnits = 0;
           hayFirstCutDone = false;
         }
@@ -1102,7 +1129,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
 
         if (i === chronicleIteration) {
           exampleHistory.push({
-            month: absoluteMonth, year,
+            month: absoluteMonth, year, cycle: i + 1,
             wheat:      Math.round(wheatStocks),
             barley:     Math.round(barleyStocks),
             oats:       Math.round(oatStocks),
