@@ -295,7 +295,7 @@ interface LandCohortState {
   intenseGrazing: number;
   storedGrass: number;
   growthUnits: number;
-  mowedThisMonth: boolean;
+  mowScheduledForNextMonth: boolean;
 }
 
 // ── Misc constants ────────────────────────────────────────────────────────────
@@ -532,7 +532,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
       intenseGrazing: 0,
       storedGrass: 0,
       growthUnits: 0,
-      mowedThisMonth: false,
+      mowScheduledForNextMonth: false,
     };
     const pastureAreaBase = (initialSheepCount * params.pastureAcresPerSheep) + ((totalOxen + totalCows + totalBulls) * params.pastureAcresPerCattle);
     const pastureState: LandCohortState = {
@@ -542,7 +542,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
       intenseGrazing: 0,
       storedGrass: 0,
       growthUnits: 0,
-      mowedThisMonth: false,
+      mowScheduledForNextMonth: false,
     };
     let hayFirstCutDone = false;
     let hayFertility = initialFertility;
@@ -851,6 +851,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
 
         // ── Grassland cohort transitions (deterministic monthly order) ──
         const grazingNeedThisMonth = isWinter ? 0 : herd.length * 0.02 + flock.length * 0.005;
+        const totalActiveGrazingArea = meadowState.normalGrazing + meadowState.intenseGrazing + pastureState.normalGrazing + pastureState.intenseGrazing;
         [meadowState, pastureState].forEach(state => {
           // 1) seasonal growth update
           const growthRate = isWinter ? 0 : SEASON_GROWTH_RATE[season];
@@ -858,7 +859,6 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
           state.storedGrass += growthRate * (state.normalGrazing + 1.5 * state.intenseGrazing);
 
           // 2) optional mowing decision
-          state.mowedThisMonth = false;
           if (state === meadowState && !isWinter) {
             const cutThreshold = hayFirstCutDone ? HAY_REGROWTH_CUT_THRESHOLD : HAY_FIRST_CUT_THRESHOLD;
             if (state.growthUnits >= cutThreshold && state.hay > 0) {
@@ -866,23 +866,31 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
               const hayHarvested = state.hay * hBaseYield * hayFertility * cutMod;
               hayStocks += hayHarvested; fHHay += hayHarvested; fHayCuts++;
               hayFirstCutDone = true;
-              state.mowedThisMonth = true;
+              state.mowScheduledForNextMonth = true;
               state.growthUnits = 0;
             }
           }
 
           // 3) grazing consumption and storage update
-          if (!isWinter && state.normalGrazing + state.intenseGrazing > 0) {
-            const classGrazingShare = state.totalArea / Math.max(0.0001, meadowState.totalArea + pastureState.totalArea);
+          const thisArea = state.normalGrazing + state.intenseGrazing;
+          if (!isWinter && thisArea > 0 && totalActiveGrazingArea > 0) {
+            const classGrazingShare = thisArea / totalActiveGrazingArea;
             const demand = grazingNeedThisMonth * classGrazingShare;
             state.storedGrass = Math.max(0, state.storedGrass - demand);
           }
         });
 
         // 4) area reallocation for next month
-        meadowState.normalGrazing = meadowState.mowedThisMonth ? meadowState.totalArea : 0;
-        meadowState.intenseGrazing = 0;
-        meadowState.hay = meadowState.mowedThisMonth ? 0 : meadowState.totalArea;
+        if (meadowState.mowScheduledForNextMonth) {
+          meadowState.hay = 0;
+          meadowState.normalGrazing = meadowState.totalArea;
+          meadowState.intenseGrazing = 0;
+          meadowState.mowScheduledForNextMonth = false;
+        } else {
+          meadowState.hay = meadowState.totalArea;
+          meadowState.normalGrazing = 0;
+          meadowState.intenseGrazing = 0;
+        }
 
         pastureState.hay = 0;
         pastureState.normalGrazing = pastureState.totalArea;
