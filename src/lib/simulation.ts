@@ -21,6 +21,8 @@ export interface SimParams {
   yieldVariability: number;
   spoilageRate: number;
   haySpoilageRate: number;
+  cartloadToKgHay: number;
+  grassKcalPerKg: number;
   titheAndManufacturePct: number;
   woolPerSheep: number;
   clothingNeedWoolLbs: number;
@@ -306,6 +308,9 @@ interface LandCohortState {
 const DAYS_PER_YEAR = 365;
 const MONTHS_PER_YEAR = 12;
 const CATTLE_MAX_LIFESPAN = 120;
+const GRASS_TO_HAY_MASS_RATIO = 0.25;
+const GRASS_TO_HAY_KCAL_RATIO = 3.6;
+const RATIO_EPSILON = 1e-12;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -432,6 +437,11 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   const monthlyKcalReq = getMonthlyKcalRequirement(params);
   const G = params.growingMonths;
   const W = params.winterMonths;
+  const hayKcalPerKg = GRASS_TO_HAY_KCAL_RATIO * params.grassKcalPerKg;
+  const hayKcalPerCartload = hayKcalPerKg * params.cartloadToKgHay;
+  if (Math.abs((hayKcalPerKg / params.grassKcalPerKg) - GRASS_TO_HAY_KCAL_RATIO) > RATIO_EPSILON) {
+    throw new Error("Hay/grass kcal ratio invariant failed.");
+  }
   const hasTwoSummerMonths = (() => {
     for (let m = 1; m < G; m++) {
       if (classifyMonth(m, G) === 'long_summer' && classifyMonth(m + 1, G) === 'long_summer') return true;
@@ -481,7 +491,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
     let wheatStocks  = monthlyKcalReq * Math.min(G, CROP_MATURITY.wheat + 1) / params.cropStats.wheat.kcalPerBu + seedWheat;
     let barleyStocks = monthlyKcalReq * Math.min(G, CROP_MATURITY.barley + 1) * 0.20 / params.cropStats.barley.kcalPerBu + seedBarley;
     let oatStocks    = seedOats + totalOxen * (params.feedNeedsWinter.oxenOats / 2);
-    let hayStocks    = 0;
+    let hayStocks    = 0; // cartloads
     let meatStocks   = 0;
     let fuelStocks   = 0;
     let woolStocks   = totalPeople * params.clothingNeedWoolLbs * 0.5;
@@ -1009,6 +1019,11 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
           const normalWinterMonthCount = W - deepWinterMonthCount;
           const projFeedMult = (normalWinterMonthCount + deepWinterMonthCount * params.deepWinterFeedMultiplier) / W;
           const projWinterOats = (totalOxen * params.feedNeedsWinter.oxenOats + totalCows * params.feedNeedsWinter.cowOats) * W * projFeedMult;
+          const projWinterHayKcal = (
+            (totalOxen * params.feedNeedsWinter.oxenHay) +
+            (totalCows * params.feedNeedsWinter.cowHay) +
+            (flock.length * params.feedNeedsWinter.sheepHay)
+          ) * W * projFeedMult * hayKcalPerCartload;
           const cowDairyKcalPeak = params.production.cowDairyLitresPerMonth * params.production.milkKcalPerLitre;
           const sheepDairyKcalPeak = params.production.sheepDairyLitresPerMonth * params.production.milkKcalPerLitre;
           const projCowDairy = herd.reduce((s, c) => {
@@ -1020,7 +1035,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
           const humanWheatKcal  = Math.max(0, wheatStocks - seedWheat) * params.cropStats.wheat.kcalPerBu;
           const humanBarleyKcal = barleyStocks * params.cropStats.barley.kcalPerBu;
           const humanOatsKcal   = Math.max(0, oatStocks - seedOats - projWinterOats) * params.cropStats.oats.kcalPerBu;
-          const winterFoodEst   = humanWheatKcal + humanBarleyKcal + humanOatsKcal + projCowDairy + projSheepDairy + meatStocks;
+          const winterFoodEst   = humanWheatKcal + humanBarleyKcal + humanOatsKcal + projCowDairy + projSheepDairy + meatStocks + projWinterHayKcal;
           const winterKcalNeed  = monthlyKcalReq * W;
           const shortfall = Math.max(0, winterKcalNeed - winterFoodEst);
 
@@ -1138,7 +1153,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
 
         // ── Animal feed ──
         let oatsNeeded = 0;
-        let hayNeeded = 0;
+        let hayNeededKcal = 0;
+        let hayNeededCartloads = 0;
         let sheepHayNeeded = 0;
         let cattleHayNeeded = 0;
 
@@ -1158,11 +1174,11 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             const feedMult = ageMult * Math.max(pregnantMult, lactMult) * deepMult;
             if (c.type === 'ox' || c.type === 'bull') {
               const h = params.feedNeedsWinter.oxenHay * feedMult;
-              hayNeeded += h; cattleHayNeeded += h;
+              hayNeededCartloads += h; cattleHayNeeded += h;
               oatsNeeded += params.feedNeedsWinter.oxenOats * feedMult;
             } else if (c.type === 'cow') {
               const h = params.feedNeedsWinter.cowHay * feedMult;
-              hayNeeded += h; cattleHayNeeded += h;
+              hayNeededCartloads += h; cattleHayNeeded += h;
               oatsNeeded += params.feedNeedsWinter.cowOats * feedMult;
             }
           });
@@ -1174,14 +1190,16 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             const h = params.feedNeedsWinter.sheepHay * feedMult;
             sheepHayNeeded += h;
           });
-          hayNeeded += sheepHayNeeded;
+          hayNeededCartloads += sheepHayNeeded;
+          hayNeededKcal = hayNeededCartloads * hayKcalPerCartload;
         }
 
-        if (hayStocks >= hayNeeded) {
-          hayStocks -= hayNeeded; fAHay += hayNeeded;
+        if (hayStocks * hayKcalPerCartload >= hayNeededKcal) {
+          const consumedHayCartloads = hayNeededKcal / hayKcalPerCartload;
+          hayStocks -= consumedHayCartloads; fAHay += consumedHayCartloads;
         } else {
           fAHay += hayStocks;
-          const hayShortfall = hayNeeded - hayStocks;
+          const hayShortfall = hayNeededCartloads - hayStocks;
           hayStocks = 0;
           const sheepHayShortfall = Math.min(hayShortfall, sheepHayNeeded);
           if (sheepHayShortfall > 0 && flock.length > clothingFloor) {
@@ -1364,7 +1382,11 @@ export function planVillageResources(params: SimParams, mode: PlannerMode = "min
   const wheatKcalPerAcre  = deratedYield(params.yields.wheat)  * params.cropStats.wheat.kcalPerBu;
   const barleyKcalPerAcre = deratedYield(params.yields.barley) * params.cropStats.barley.kcalPerBu;
   const oatsFeedPerAcre   = deratedYield(params.yields.oats);
-  const hayFeedPerAcre    = Math.max(0.000001, params.yields.hay * PLANNER_AVG_FERTILITY * (1 - params.haySpoilageRate / 100));
+  const hayFeedPerAcre = Math.max(
+    0.000001,
+    (params.yields.hay * 1000 * GRASS_TO_HAY_MASS_RATIO / params.cartloadToKgHay) *
+    PLANNER_AVG_FERTILITY * (1 - params.haySpoilageRate / 100),
+  );
   const fuelPerForestAcre = Math.max(0.000001, params.fuelYieldPerAcre * (params.growingMonths / 12));
 
   // Compute effective winter averages accounting for deep-winter months

@@ -21,6 +21,8 @@ export const DEFAULTS: SimParams = {
   yieldVariability: 15, // % Standard Deviation
   spoilageRate: 3, // % per month for grain
   haySpoilageRate: 5, // % per month for hay
+  cartloadToKgHay: 250,
+  grassKcalPerKg: 600,
   titheAndManufacturePct: 15, // % deducted from harvest for taxes, tithes, and non-cloth manufactures
   woolPerSheep: 1.5, // lbs of wool per sheep per year
   clothingNeedWoolLbs: 1.5, // lbs of wool needed per person per year for basic garments
@@ -42,10 +44,10 @@ export const DEFAULTS: SimParams = {
   animalsPerHH: { oxen: 2, cows: 2, sheep: 4 },
   feedNeedsWinter: { 
     oxenOats: 3, // Bushels per month
-    oxenHay: 0.5, // Tons per month
+    oxenHay: 2, // Cartloads of hay per month
     cowOats: 2, 
-    cowHay: 0.5, 
-    sheepHay: 0.1 
+    cowHay: 2,
+    sheepHay: 0.4
   },
   production: {
     cowDairyLitresPerMonth: 60,    // Litres of milk per lactating cow per month at peak (post-weaning)
