@@ -25,9 +25,10 @@ export const DEFAULTS: SimParams = {
   woolPerSheep: 1.5, // lbs of wool per sheep per year
   clothingNeedWoolLbs: 1.5, // lbs of wool needed per person per year for basic garments
   woodlandAcres: 300, // Acres of woodland/commons for gathering fuel
-  fuelYieldPerAcre: 1.8, // Stacked cubic meters (stere) gathered per acre of woodland per year
-  fuelNeedsSummer: 0.6, // Stacked m³ fuel per household per month (cooking)
-  fuelNeedsWinter: 1.8, // Stacked m³ fuel per household per month (cooking + heating)
+  fuelYieldPerAcre: 1.8, // Cartloads gathered per acre of woodland per year
+  fuelNeedsSummer: 230000, // Usable kcal fuel per household per month (cooking)
+  fuelNeedsWinter: 690000, // Usable kcal fuel per household per month (cooking + heating)
+  m3PerCartload: 0.7, // Stacked cubic meters represented by one cartload
   fuelEnergy: {
     woodDensityKgPerM3: 340, // Air-dry stacked mixed hardwood/softwood equivalent
     grossKjPerKg: 15000, // Air-dry fuelwood NCV expressed in kJ/kg

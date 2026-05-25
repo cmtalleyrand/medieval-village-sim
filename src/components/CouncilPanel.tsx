@@ -388,10 +388,12 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
             value={params.woodlandAcres} onChange={v => setField('woodlandAcres', v)} onCommit={commitParams} />
           <NumberField label="Yield/ac/yr" tooltip="Cartloads gathered per acre per year."
             step={0.1} value={params.fuelYieldPerAcre} onChange={v => setField('fuelYieldPerAcre', v)} onCommit={commitParams} />
-          <NumberField label="Summer need" tooltip="Cartloads per household per month, for cooking only."
-            step={0.1} value={params.fuelNeedsSummer} onChange={v => setField('fuelNeedsSummer', v)} onCommit={commitParams} />
-          <NumberField label="Winter need" tooltip="Cartloads per household per month for cooking + heating."
-            step={0.1} value={params.fuelNeedsWinter} onChange={v => setField('fuelNeedsWinter', v)} onCommit={commitParams} />
+          <NumberField label="Summer need" tooltip="Usable fuel kcal per household per month, for cooking only."
+            step={10000} value={params.fuelNeedsSummer} onChange={v => setField('fuelNeedsSummer', v)} onCommit={commitParams} />
+          <NumberField label="Winter need" tooltip="Usable fuel kcal per household per month for cooking + heating."
+            step={10000} value={params.fuelNeedsWinter} onChange={v => setField('fuelNeedsWinter', v)} onCommit={commitParams} />
+          <NumberField label="m³/cartload" tooltip="Packed volume represented by one cartload of gathered fuel."
+            step={0.05} value={params.m3PerCartload} onChange={v => setField('m3PerCartload', v)} onCommit={commitParams} />
         </div>
       </Card>
 

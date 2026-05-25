@@ -1,4 +1,5 @@
 import { DEFAULTS } from "./defaults";
+import { createUnitRegistry } from "./units";
 
 export interface SimParams {
   households: number;
@@ -28,6 +29,7 @@ export interface SimParams {
   fuelYieldPerAcre: number;
   fuelNeedsSummer: number;
   fuelNeedsWinter: number;
+  m3PerCartload: number;
   fuelEnergy: {
     woodDensityKgPerM3: number;
     grossKjPerKg: number;
@@ -83,6 +85,7 @@ export interface MonthHistory {
 
 
 export interface FuelAudit {
+  cartloads: number;
   volumeM3: number;
   massKg: number;
   grossEnergyKj: number;
@@ -210,11 +213,15 @@ export function randomizeYield(base: number, variabilityPct: number): number {
 }
 
 function buildConversionAudit(params: SimParams): ConversionAudit {
-  const fuelMassPerM3 = params.fuelEnergy.woodDensityKgPerM3;
-  const fuelGrossPerM3 = fuelMassPerM3 * params.fuelEnergy.grossKjPerKg;
-  const fuelUsablePerM3 = fuelGrossPerM3 * params.fuelEnergy.netUsableHeatFraction;
-  const annualFuelGatheredM3 = params.woodlandAcres * params.fuelYieldPerAcre * params.growingMonths / 12;
-  const annualFuelWinterDemandM3 = params.households * params.fuelNeedsWinter * params.winterMonths;
+  const units = createUnitRegistry({
+    m3PerCartload: params.m3PerCartload,
+    kgPerM3: params.fuelEnergy.woodDensityKgPerM3,
+    kcalPerKg: params.fuelEnergy.grossKjPerKg / 4.184,
+  });
+  const annualFuelGatheredCartloads = params.woodlandAcres * params.fuelYieldPerAcre * params.growingMonths / 12;
+  const annualFuelWinterDemandUsableKcal = params.households * params.fuelNeedsWinter * params.winterMonths;
+  const annualFuelWinterDemandGrossKcal = annualFuelWinterDemandUsableKcal / params.fuelEnergy.netUsableHeatFraction;
+  const annualFuelWinterDemandCartloads = units.convert(annualFuelWinterDemandGrossKcal, 'kcal', 'cartload');
 
   const activeAcres = params.totalAcres * (1 - params.fallowPct / 100);
   const wheatBu = activeAcres * (params.landSplit.wheat / 100) * params.yields.wheat;
@@ -241,16 +248,18 @@ function buildConversionAudit(params: SimParams): ConversionAudit {
   return {
     fuel: {
       annualGathered: {
-        volumeM3: annualFuelGatheredM3,
-        massKg: annualFuelGatheredM3 * fuelMassPerM3,
-        grossEnergyKj: annualFuelGatheredM3 * fuelGrossPerM3,
-        usableHeatKj: annualFuelGatheredM3 * fuelUsablePerM3,
+        cartloads: annualFuelGatheredCartloads,
+        volumeM3: units.convert(annualFuelGatheredCartloads, 'cartload', 'm3'),
+        massKg: units.convert(annualFuelGatheredCartloads, 'cartload', 'kg'),
+        grossEnergyKj: units.convert(annualFuelGatheredCartloads, 'cartload', 'kcal') * 4.184,
+        usableHeatKj: units.convert(annualFuelGatheredCartloads, 'cartload', 'kcal') * 4.184 * params.fuelEnergy.netUsableHeatFraction,
       },
       annualWinterDemand: {
-        volumeM3: annualFuelWinterDemandM3,
-        massKg: annualFuelWinterDemandM3 * fuelMassPerM3,
-        grossEnergyKj: annualFuelWinterDemandM3 * fuelGrossPerM3,
-        usableHeatKj: annualFuelWinterDemandM3 * fuelUsablePerM3,
+        cartloads: annualFuelWinterDemandCartloads,
+        volumeM3: units.convert(annualFuelWinterDemandCartloads, 'cartload', 'm3'),
+        massKg: units.convert(annualFuelWinterDemandCartloads, 'cartload', 'kg'),
+        grossEnergyKj: units.convert(annualFuelWinterDemandCartloads, 'cartload', 'kcal') * 4.184,
+        usableHeatKj: units.convert(annualFuelWinterDemandCartloads, 'cartload', 'kcal') * 4.184 * params.fuelEnergy.netUsableHeatFraction,
       },
     },
     foods: {
@@ -326,7 +335,12 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   const initWoolStocks = totalPeople * params.clothingNeedWoolLbs * 0.5;
   const initClothStocks = totalPeople * params.clothingNeedWoolLbs * 0.5;
   // Woodland fuel: deterministic end-of-season harvest scaled for season length; no summer consumption
-  const woodlandFuelYield = params.woodlandAcres * params.fuelYieldPerAcre * params.growingMonths / 12;
+  const units = createUnitRegistry({
+    m3PerCartload: params.m3PerCartload,
+    kgPerM3: params.fuelEnergy.woodDensityKgPerM3,
+    kcalPerKg: params.fuelEnergy.grossKjPerKg / 4.184,
+  });
+  const woodlandFuelYield = units.convert(params.woodlandAcres * params.fuelYieldPerAcre * params.growingMonths / 12, "cartload", "kcal") * params.fuelEnergy.netUsableHeatFraction;
 
   for (let i = 0; i < iterations; i++) {
     let wheatStocks = initWheatStocks;
@@ -515,11 +529,11 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         // Fuel: communal woodland stock heats the village in winter only; summer cooking is free.
         let currentMonthlyKcalReq = monthlyKcalReq;
         if (isWinter) {
-            const fuelNeeded = params.households * params.fuelNeedsWinter;
-            if (fuelStocks >= fuelNeeded) {
-                fuelStocks -= fuelNeeded;
+            const fuelNeededKcal = params.households * params.fuelNeedsWinter;
+            if (fuelStocks >= fuelNeededKcal) {
+                fuelStocks -= fuelNeededKcal;
             } else {
-                const fuelShortagePct = fuelNeeded > 0 ? (fuelNeeded - fuelStocks) / fuelNeeded : 0;
+                const fuelShortagePct = fuelNeededKcal > 0 ? (fuelNeededKcal - fuelStocks) / fuelNeededKcal : 0;
                 fuelStocks = 0;
                 hadFuelShortage = true;
                 currentMonthlyKcalReq += monthlyKcalReq * (0.3 * fuelShortagePct);
@@ -744,7 +758,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             barley: Math.round(barleyStocks),
             oats: Math.round(oatStocks),
             hay: Math.round(hayStocks),
-            fuel: Math.round(fuelStocks),
+            fuel: Math.round(units.convert(fuelStocks / params.fuelEnergy.netUsableHeatFraction, "kcal", "cartload")),
             hWheat: Math.round(fHWheat),
             hBarley: Math.round(fHBarley),
             hOats: Math.round(fHOats),

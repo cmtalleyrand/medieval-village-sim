@@ -185,6 +185,8 @@ export function OutcomesPanel({ results, params, isSimulating }: Props) {
           <LedgerRow label="Wool" value={`${Math.round(results.conversionAudit.physicalOutputs.woolLbs).toLocaleString()} lb`} />
           <LedgerRow label="Cloth" value={`${Math.round(results.conversionAudit.physicalOutputs.clothYards).toLocaleString()} yd`} />
           <LedgerRow label="Sheep meat" value={`${Math.round(results.conversionAudit.physicalOutputs.meatLbs.sheep).toLocaleString()} lb`} />
+          <LedgerRow label="Fuel gathered" value={`${Math.round(results.conversionAudit.fuel.annualGathered.cartloads).toLocaleString()} cartloads`} />
+          <LedgerRow label="Fuel audit" value={`${Math.round(results.conversionAudit.fuel.annualGathered.volumeM3).toLocaleString()} m³ · ${Math.round(results.conversionAudit.fuel.annualGathered.massKg).toLocaleString()} kg · ${(results.conversionAudit.fuel.annualGathered.usableHeatKj / 4.184 / 1_000_000).toFixed(2)} Mkcal`} />
         </div>
       </Card>
     </div>
