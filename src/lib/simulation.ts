@@ -30,15 +30,15 @@ export interface SimParams {
   fuelNeedsWinter: number;
   fuelEnergy: {
     woodDensityKgPerM3: number;
-    grossKjPerKg: number;
+    kcalPerKgWood: number;
     netUsableHeatFraction: number;
   };
   foodEnergyModel: {
     barleyProcessingLossPct: number;
     barleyProcessingWasteFeedShare: number;
     densitiesKgPerBu: { wheat: number; barley: number; oats: number };
-    energyKjPerKg: { wheat: number; barley: number; oats: number; hay: number };
-    metabolizableKjPerKg: { oatsForRuminants: number; oatsForMonogastrics: number; hayForRuminants: number };
+    energyKcalPerKg: { wheat: number; barley: number; oats: number; hay: number };
+    metabolizableKcalPerKg: { oatsForRuminants: number; oatsForMonogastrics: number; hayForRuminants: number };
   };
   plannerRiskBufferPct: number;
   bullsPerCow: number;
@@ -85,19 +85,19 @@ export interface MonthHistory {
 export interface FuelAudit {
   volumeM3: number;
   massKg: number;
-  grossEnergyKj: number;
-  usableHeatKj: number;
+  grossEnergyKcal: number;
+  usableHeatKcal: number;
 }
 
 export interface FoodPathwayAudit {
   volumeM3: number | null;
   weightKg: number;
   energy: {
-    ruminantOnlyKj: number;
-    animalDirectKj: number;
-    humanProcessedKj: number;
-    processingWasteAnimalKj: number;
-    humanDirectKj: number;
+    ruminantOnlyKcal: number;
+    animalDirectKcal: number;
+    humanProcessedKcal: number;
+    processingWasteAnimalKcal: number;
+    humanDirectKcal: number;
   };
 }
 
@@ -211,7 +211,7 @@ export function randomizeYield(base: number, variabilityPct: number): number {
 
 function buildConversionAudit(params: SimParams): ConversionAudit {
   const fuelMassPerM3 = params.fuelEnergy.woodDensityKgPerM3;
-  const fuelGrossPerM3 = fuelMassPerM3 * params.fuelEnergy.grossKjPerKg;
+  const fuelGrossPerM3 = fuelMassPerM3 * params.fuelEnergy.kcalPerKgWood;
   const fuelUsablePerM3 = fuelGrossPerM3 * params.fuelEnergy.netUsableHeatFraction;
   const annualFuelGatheredM3 = params.woodlandAcres * params.fuelYieldPerAcre * params.growingMonths / 12;
   const annualFuelWinterDemandM3 = params.households * params.fuelNeedsWinter * params.winterMonths;
@@ -234,7 +234,7 @@ function buildConversionAudit(params: SimParams): ConversionAudit {
   const eweSeasonMonths = Math.max(0, params.growingMonths - 4);
   const eweCount = params.households * params.animalsPerHH.sheep * 0.5;
 
-  const barleyGross = barleyKg * params.foodEnergyModel.energyKjPerKg.barley;
+  const barleyGross = barleyKg * params.foodEnergyModel.energyKcalPerKg.barley;
   const barleyProcessed = barleyGross * (1 - params.foodEnergyModel.barleyProcessingLossPct / 100);
   const barleyWaste = (barleyGross - barleyProcessed) * params.foodEnergyModel.barleyProcessingWasteFeedShare;
 
@@ -243,23 +243,23 @@ function buildConversionAudit(params: SimParams): ConversionAudit {
       annualGathered: {
         volumeM3: annualFuelGatheredM3,
         massKg: annualFuelGatheredM3 * fuelMassPerM3,
-        grossEnergyKj: annualFuelGatheredM3 * fuelGrossPerM3,
-        usableHeatKj: annualFuelGatheredM3 * fuelUsablePerM3,
+        grossEnergyKcal: annualFuelGatheredM3 * fuelGrossPerM3,
+        usableHeatKcal: annualFuelGatheredM3 * fuelUsablePerM3,
       },
       annualWinterDemand: {
         volumeM3: annualFuelWinterDemandM3,
         massKg: annualFuelWinterDemandM3 * fuelMassPerM3,
-        grossEnergyKj: annualFuelWinterDemandM3 * fuelGrossPerM3,
-        usableHeatKj: annualFuelWinterDemandM3 * fuelUsablePerM3,
+        grossEnergyKcal: annualFuelWinterDemandM3 * fuelGrossPerM3,
+        usableHeatKcal: annualFuelWinterDemandM3 * fuelUsablePerM3,
       },
     },
     foods: {
-      wheat: { volumeM3: null, weightKg: wheatKg, energy: { ruminantOnlyKj: 0, animalDirectKj: 0, humanProcessedKj: 0, processingWasteAnimalKj: 0, humanDirectKj: wheatKg * params.foodEnergyModel.energyKjPerKg.wheat } },
-      barley: { volumeM3: null, weightKg: barleyKg, energy: { ruminantOnlyKj: 0, animalDirectKj: 0, humanProcessedKj: barleyProcessed, processingWasteAnimalKj: barleyWaste, humanDirectKj: barleyGross * 0.25 } },
-      oats: { volumeM3: null, weightKg: oatsKg, energy: { ruminantOnlyKj: 0, animalDirectKj: oatsKg * params.foodEnergyModel.metabolizableKjPerKg.oatsForMonogastrics, humanProcessedKj: 0, processingWasteAnimalKj: 0, humanDirectKj: oatsKg * params.foodEnergyModel.energyKjPerKg.oats } },
-      hay: { volumeM3: null, weightKg: hayKg, energy: { ruminantOnlyKj: hayKg * params.foodEnergyModel.metabolizableKjPerKg.hayForRuminants, animalDirectKj: 0, humanProcessedKj: 0, processingWasteAnimalKj: 0, humanDirectKj: 0 } },
-      dairy: { volumeM3: null, weightKg: (params.households * params.animalsPerHH.cows * cowGallonsPerYear + eweCount * eweSeasonMonths * eweGallonsPerMonthInSeason) * 3.9, energy: { ruminantOnlyKj: 0, animalDirectKj: 0, humanProcessedKj: 0, processingWasteAnimalKj: 0, humanDirectKj: params.households * params.animalsPerHH.cows * params.production.cowDairyKcal * 12 * 4.184 } },
-      meat: { volumeM3: null, weightKg: ((params.households * params.animalsPerHH.cows * 0.15 * 180) + (params.households * params.animalsPerHH.cows * 0.12 * 30) + (params.households * params.animalsPerHH.sheep * 0.10 * 20)) * 0.453592, energy: { ruminantOnlyKj: 0, animalDirectKj: 0, humanProcessedKj: 0, processingWasteAnimalKj: 0, humanDirectKj: (params.households * params.animalsPerHH.sheep * params.production.sheepMeatKcal) * 4.184 } },
+      wheat: { volumeM3: null, weightKg: wheatKg, energy: { ruminantOnlyKcal: 0, animalDirectKcal: 0, humanProcessedKcal: 0, processingWasteAnimalKcal: 0, humanDirectKcal: wheatKg * params.foodEnergyModel.energyKcalPerKg.wheat } },
+      barley: { volumeM3: null, weightKg: barleyKg, energy: { ruminantOnlyKcal: 0, animalDirectKcal: 0, humanProcessedKcal: barleyProcessed, processingWasteAnimalKcal: barleyWaste, humanDirectKcal: barleyGross * 0.25 } },
+      oats: { volumeM3: null, weightKg: oatsKg, energy: { ruminantOnlyKcal: 0, animalDirectKcal: oatsKg * params.foodEnergyModel.metabolizableKcalPerKg.oatsForMonogastrics, humanProcessedKcal: 0, processingWasteAnimalKcal: 0, humanDirectKcal: oatsKg * params.foodEnergyModel.energyKcalPerKg.oats } },
+      hay: { volumeM3: null, weightKg: hayKg, energy: { ruminantOnlyKcal: hayKg * params.foodEnergyModel.metabolizableKcalPerKg.hayForRuminants, animalDirectKcal: 0, humanProcessedKcal: 0, processingWasteAnimalKcal: 0, humanDirectKcal: 0 } },
+      dairy: { volumeM3: null, weightKg: (params.households * params.animalsPerHH.cows * cowGallonsPerYear + eweCount * eweSeasonMonths * eweGallonsPerMonthInSeason) * 3.9, energy: { ruminantOnlyKcal: 0, animalDirectKcal: 0, humanProcessedKcal: 0, processingWasteAnimalKcal: 0, humanDirectKcal: params.households * params.animalsPerHH.cows * params.production.cowDairyKcal * 12  } },
+      meat: { volumeM3: null, weightKg: ((params.households * params.animalsPerHH.cows * 0.15 * 180) + (params.households * params.animalsPerHH.cows * 0.12 * 30) + (params.households * params.animalsPerHH.sheep * 0.10 * 20)) * 0.453592, energy: { ruminantOnlyKcal: 0, animalDirectKcal: 0, humanProcessedKcal: 0, processingWasteAnimalKcal: 0, humanDirectKcal: (params.households * params.animalsPerHH.sheep * params.production.sheepMeatKcal)  } },
     },
     physicalOutputs: {
       grainBushels: { wheat: wheatBu, barley: barleyBu, oats: oatsBu },

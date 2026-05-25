@@ -30,15 +30,15 @@ export const DEFAULTS: SimParams = {
   fuelNeedsWinter: 1.8, // Stacked m³ fuel per household per month (cooking + heating)
   fuelEnergy: {
     woodDensityKgPerM3: 340, // Air-dry stacked mixed hardwood/softwood equivalent
-    grossKjPerKg: 15000, // Air-dry fuelwood NCV expressed in kJ/kg
+    kcalPerKgWood: 3585.086, // Air-dry fuelwood NCV expressed in kcal/kg (converted from 15000 kJ/kg)
     netUsableHeatFraction: 0.45, // Open hearth + simple stove seasonal efficiency
   },
   foodEnergyModel: {
     barleyProcessingLossPct: 12,
     barleyProcessingWasteFeedShare: 0.85,
     densitiesKgPerBu: { wheat: 27.2, barley: 21.8, oats: 14.5 },
-    energyKjPerKg: { wheat: 14300, barley: 14100, oats: 15600, hay: 16000 },
-    metabolizableKjPerKg: { oatsForRuminants: 10900, oatsForMonogastrics: 12400, hayForRuminants: 7400 },
+    energyKcalPerKg: { wheat: 3417.782, barley: 3370.937, oats: 3728.489, hay: 3824.092 },
+    metabolizableKcalPerKg: { oatsForRuminants: 2605.163, oatsForMonogastrics: 2963.671, hayForRuminants: 1768.642 },
   },
   plannerRiskBufferPct: 5, // Planner-only reserve margin applied to annual needs
   bullsPerCow: 1 / 12, // Bulls required per cow
