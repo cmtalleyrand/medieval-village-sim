@@ -859,6 +859,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         const winterSheepOnlyNeed = flock.length * 0.005;
         const grazingNeedThisMonth = isWinter ? winterSheepOnlyNeed : herd.length * 0.02 + flock.length * 0.005;
         const totalActiveGrazingArea = meadowState.normalGrazing + meadowState.intenseGrazing + pastureState.normalGrazing + pastureState.intenseGrazing;
+        let meadowCutThisMonth = false;
         [meadowState, pastureState].forEach(state => {
           // 1) seasonal growth update
           const growthRate = isDeepWinter ? 0 : isWinter ? WINTER_GRASS_GROWTH_RATE : SEASON_GROWTH_RATE[season];
@@ -876,6 +877,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
               hayStocks += hayHarvested; fHHay += hayHarvested; fHayCuts++;
               hayFirstCutDone = true;
               state.growthUnits = HAY_POST_MOW_GU_RESIDUAL_FACTOR * hayFertility;
+              if (state === meadowState) meadowCutThisMonth = true;
             }
           }
 
@@ -889,9 +891,26 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         });
 
         // 4) area reallocation for next month
-        meadowState.hay = meadowState.totalArea;
-        meadowState.normalGrazing = 0;
-        meadowState.intenseGrazing = 0;
+        let hasFutureMowWindow = false;
+        if (!isWinter) {
+          for (let m = growingMonth + 1; m <= G; m++) {
+            if (classifyMonth(m, G) !== 'long_summer') continue;
+            if (!hasTwoSummerMonths || (m < G && classifyMonth(m + 1, G) === 'long_summer')) {
+              hasFutureMowWindow = true;
+              break;
+            }
+          }
+        }
+        const wasLastHayCut = meadowCutThisMonth && !hasFutureMowWindow;
+        if (wasLastHayCut) {
+          meadowState.hay = 0;
+          meadowState.normalGrazing = 0;
+          meadowState.intenseGrazing = meadowState.totalArea;
+        } else {
+          meadowState.hay = meadowState.totalArea;
+          meadowState.normalGrazing = 0;
+          meadowState.intenseGrazing = 0;
+        }
 
         pastureState.hay = 0;
         pastureState.normalGrazing = pastureState.totalArea;
