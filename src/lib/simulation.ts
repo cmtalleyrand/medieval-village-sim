@@ -214,6 +214,7 @@ const HAY_REGROWTH_CUT_THRESHOLD = 2.0;
 const HAY_POST_MOW_GU_RESIDUAL_FACTOR = 0.5;
 const INTENSE_GRAZING_TRIGGER = 0.03;
 const INTENSE_GRAZING_MAX_SHARE = 0.6;
+const WINTER_GRASS_GROWTH_RATE = 0.2;
 
 // ── Livestock constants ───────────────────────────────────────────────────────
 
@@ -435,6 +436,12 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
 
   const activeAcres = params.totalAcres * (1 - params.fallowPct / 100);
   const YEARS_PER_ITERATION = 5;
+  const hasTwoSummerMonths = (() => {
+    for (let m = 1; m < G; m++) {
+      if (classifyMonth(m, G) === 'long_summer' && classifyMonth(m + 1, G) === 'long_summer') return true;
+    }
+    return false;
+  })();
 
   const wAcresConst = activeAcres * (params.landSplit.wheat / 100);
   const bAcresConst = activeAcres * (params.landSplit.barley / 100);
@@ -853,18 +860,21 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         }
 
         // ── Grassland cohort transitions (deterministic monthly order) ──
-        const grazingNeedThisMonth = isWinter ? 0 : herd.length * 0.02 + flock.length * 0.005;
+        const winterSheepOnlyNeed = flock.length * 0.005;
+        const grazingNeedThisMonth = isWinter ? winterSheepOnlyNeed : herd.length * 0.02 + flock.length * 0.005;
         const totalActiveGrazingArea = meadowState.normalGrazing + meadowState.intenseGrazing + pastureState.normalGrazing + pastureState.intenseGrazing;
         [meadowState, pastureState].forEach(state => {
           // 1) seasonal growth update
-          const growthRate = isWinter ? 0 : SEASON_GROWTH_RATE[season];
+          const growthRate = isDeepWinter ? 0 : isWinter ? WINTER_GRASS_GROWTH_RATE : SEASON_GROWTH_RATE[season];
           state.growthUnits += growthRate;
           state.storedGrass += growthRate * (state.normalGrazing + 1.5 * state.intenseGrazing);
 
           // 2) optional mowing decision
           if (state === meadowState && !isWinter) {
+            const nextIsLongSummer = growingMonth < G && classifyMonth(growingMonth + 1, G) === 'long_summer';
+            const canMowNow = season === 'long_summer' && (!hasTwoSummerMonths || nextIsLongSummer);
             const cutThreshold = hayFirstCutDone ? HAY_REGROWTH_CUT_THRESHOLD : HAY_FIRST_CUT_THRESHOLD;
-            if (state.growthUnits >= cutThreshold && state.hay > 0) {
+            if (canMowNow && state.growthUnits >= cutThreshold && state.hay > 0) {
               const cutMod = hayFirstCutDone ? 0.7 : 1;
               const hayHarvested = state.hay * hBaseYield * hayFertility * cutMod;
               hayStocks += hayHarvested; fHHay += hayHarvested; fHayCuts++;
@@ -876,7 +886,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
 
           // 3) grazing consumption and storage update
           const thisArea = state.normalGrazing + state.intenseGrazing;
-          if (!isWinter && thisArea > 0 && totalActiveGrazingArea > 0) {
+          if (thisArea > 0 && totalActiveGrazingArea > 0) {
             const classGrazingShare = thisArea / totalActiveGrazingArea;
             const demand = grazingNeedThisMonth * classGrazingShare;
             state.storedGrass = Math.max(0, state.storedGrass - demand);
@@ -886,8 +896,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         // 4) area reallocation for next month
         if (meadowState.mowScheduledForNextMonth) {
           meadowState.hay = 0;
-          meadowState.normalGrazing = meadowState.totalArea;
-          meadowState.intenseGrazing = 0;
+          meadowState.normalGrazing = 0;
+          meadowState.intenseGrazing = meadowState.totalArea;
           meadowState.mowScheduledForNextMonth = false;
         } else {
           meadowState.hay = meadowState.totalArea;
@@ -911,6 +921,10 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             state.normalGrazing = grazingArea - intenseArea;
             state.intenseGrazing = intenseArea;
           });
+        }
+        if (isDeepWinter) {
+          meadowState.growthUnits = 0;
+          pastureState.growthUnits = 0;
         }
 
         // ── Pre-winter culling ──
