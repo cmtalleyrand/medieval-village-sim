@@ -111,6 +111,12 @@ export interface ConversionAudit {
     wheat: FoodPathwayAudit;
     barley: FoodPathwayAudit;
     oats: FoodPathwayAudit;
+    oatsReported: {
+      oatsKg: number;
+      oatsTonnes: number;
+      oatsHumanKcal: number;
+      oatsAnimalFeedKcal: number;
+    };
     hay: FoodPathwayAudit;
     dairy: FoodPathwayAudit;
     meat: FoodPathwayAudit;
@@ -250,6 +256,7 @@ function buildConversionAudit(params: SimParams): ConversionAudit {
   const wheatKg = wheatBu * params.foodEnergyModel.densitiesKgPerBu.wheat;
   const barleyKg = barleyBu * params.foodEnergyModel.densitiesKgPerBu.barley;
   const oatsKg = oatsBu * params.foodEnergyModel.densitiesKgPerBu.oats;
+  const oatsTonnes = oatsKg / 1000;
   const hayKg = hayTons * 907.18474;
   const people = params.households * (params.peoplePerHH.male + params.peoplePerHH.female + params.peoplePerHH.child);
   const woolLbs = params.households * params.animalsPerHH.sheep * params.woolPerSheep * ((100 - params.titheAndManufacturePct) / 100);
@@ -282,6 +289,12 @@ function buildConversionAudit(params: SimParams): ConversionAudit {
       wheat: { volumeM3: null, weightKg: wheatKg, energy: { ruminantOnlyKcal: 0, animalDirectKcal: 0, humanProcessedKcal: 0, processingWasteAnimalKcal: 0, humanDirectKcal: wheatKg * params.foodEnergyModel.energyKcalPerKg.wheat } },
       barley: { volumeM3: null, weightKg: barleyKg, energy: { ruminantOnlyKcal: 0, animalDirectKcal: 0, humanProcessedKcal: barleyProcessed, processingWasteAnimalKcal: barleyWaste, humanDirectKcal: barleyGross * 0.25 } },
       oats: { volumeM3: null, weightKg: oatsKg, energy: { ruminantOnlyKcal: 0, animalDirectKcal: oatsKg * params.foodEnergyModel.metabolizableKcalPerKg.oatsForMonogastrics, humanProcessedKcal: 0, processingWasteAnimalKcal: 0, humanDirectKcal: oatsKg * params.foodEnergyModel.energyKcalPerKg.oats } },
+      oatsReported: {
+        oatsKg,
+        oatsTonnes,
+        oatsHumanKcal: oatsKg * params.foodEnergyModel.energyKcalPerKg.oats,
+        oatsAnimalFeedKcal: oatsKg * params.foodEnergyModel.metabolizableKcalPerKg.oatsForMonogastrics,
+      },
       hay: { volumeM3: null, weightKg: hayKg, energy: { ruminantOnlyKcal: hayKg * params.foodEnergyModel.metabolizableKcalPerKg.hayForRuminants, animalDirectKcal: 0, humanProcessedKcal: 0, processingWasteAnimalKcal: 0, humanDirectKcal: 0 } },
       dairy: { volumeM3: null, weightKg: (params.households * params.animalsPerHH.cows * cowGallonsPerYear + eweCount * eweSeasonMonths * eweGallonsPerMonthInSeason) * 3.9, energy: { ruminantOnlyKcal: 0, animalDirectKcal: 0, humanProcessedKcal: 0, processingWasteAnimalKcal: 0, humanDirectKcal: params.households * params.animalsPerHH.cows * params.production.cowDairyKcal * 12  } },
       meat: { volumeM3: null, weightKg: ((params.households * params.animalsPerHH.cows * 0.15 * 180) + (params.households * params.animalsPerHH.cows * 0.12 * 30) + (params.households * params.animalsPerHH.sheep * 0.10 * 20)) * 0.453592, energy: { ruminantOnlyKcal: 0, animalDirectKcal: 0, humanProcessedKcal: 0, processingWasteAnimalKcal: 0, humanDirectKcal: (params.households * params.animalsPerHH.sheep * params.production.sheepMeatKcal)  } },

@@ -178,7 +178,11 @@ export function OutcomesPanel({ results, params, isSimulating }: Props) {
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 text-[0.75rem]">
           <LedgerRow label="Wheat" value={`${Math.round(results.conversionAudit.physicalOutputs.grainBushels.wheat).toLocaleString()} bu`} />
           <LedgerRow label="Barley" value={`${Math.round(results.conversionAudit.physicalOutputs.grainBushels.barley).toLocaleString()} bu`} />
-          <LedgerRow label="Oats" value={`${Math.round(results.conversionAudit.physicalOutputs.grainBushels.oats).toLocaleString()} bu`} />
+          <LedgerRow
+            label="Oats"
+            value={`${Math.round(results.conversionAudit.physicalOutputs.grainBushels.oats).toLocaleString()} bu`}
+            sub={`Secondary units: ${Math.round(results.conversionAudit.foods.oatsReported.oatsKg).toLocaleString()} kg (${results.conversionAudit.foods.oatsReported.oatsTonnes.toFixed(2)} t); human-edible ${Math.round(results.conversionAudit.foods.oatsReported.oatsHumanKcal).toLocaleString()} kcal and animal-feed metabolizable ${Math.round(results.conversionAudit.foods.oatsReported.oatsAnimalFeedKcal).toLocaleString()} kcal are parallel characterizations of oats energy potential under current model assumptions (not a changed allocation engine).`}
+          />
           <LedgerRow label="Hay" value={`${Math.round(results.conversionAudit.physicalOutputs.hayTons).toLocaleString()} tons`} />
           <LedgerRow label="Cow milk" value={`${Math.round(results.conversionAudit.physicalOutputs.milkGallons.cow).toLocaleString()} gal/yr`} />
           <LedgerRow label="Ewe milk" value={`${Math.round(results.conversionAudit.physicalOutputs.milkGallons.ewe).toLocaleString()} gal/yr`} />
@@ -191,8 +195,15 @@ export function OutcomesPanel({ results, params, isSimulating }: Props) {
   );
 }
 
-function LedgerRow({ label, value }: { label: string; value: string }) {
-  return <div className="flex justify-between border-b border-[rgba(120,80,30,0.18)] py-1"><span>{label}</span><span className="tabular-nums">{value}</span></div>;
+function LedgerRow({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="border-b border-[rgba(120,80,30,0.18)] py-1">
+      <div className="flex justify-between">
+        <span>{label}</span><span className="tabular-nums">{value}</span>
+      </div>
+      {sub && <div className="text-[0.66rem] text-[var(--color-ink-300)] leading-tight pt-0.5">{sub}</div>}
+    </div>
+  );
 }
 
 function DietSegment({ color, pct, label }: { color: string; pct: number; label: string }) {
