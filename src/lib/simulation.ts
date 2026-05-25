@@ -4,6 +4,7 @@ export interface SimParams {
   households: number;
   growingMonths: number;
   winterMonths: number;
+  sunEraMonths?: number;
   totalAcres: number;
   fallowPct: number;
   landSplit: {
@@ -133,6 +134,11 @@ export interface HumanDiet {
 }
 
 export interface SimResult {
+  humanShortagePerSunEra: number;
+  severeShortagePerSunEra: number;
+  animalDeathPerSunEra: number;
+  fuelShortagePerSunEra: number;
+  clothingShortagePerSunEra: number;
   humanShortageObj: number; // probability 0-1
   severeShortageObj: number; // probability 0-1
   animalDeathObj: number;
@@ -155,6 +161,25 @@ interface Cattle {
 const DAYS_PER_YEAR = 365;
 const MONTHS_PER_YEAR = 12;
 const WINTER_DAIRY_OUTPUT_FACTOR = 0.35;
+
+export function getSunEraMonths(params: Pick<SimParams, "growingMonths" | "winterMonths" | "sunEraMonths">): number {
+  return params.sunEraMonths ?? (params.growingMonths + params.winterMonths);
+}
+
+export function monthToSunEra(monthIndex: number, params: Pick<SimParams, "growingMonths" | "winterMonths" | "sunEraMonths">): number {
+  return Math.floor((monthIndex - 1) / getSunEraMonths(params)) + 1;
+}
+
+export function sunEraToMonthRange(sunEra: number, params: Pick<SimParams, "growingMonths" | "winterMonths" | "sunEraMonths">): { startMonth: number; endMonth: number } {
+  const sunEraMonths = getSunEraMonths(params);
+  const startMonth = (sunEra - 1) * sunEraMonths + 1;
+  return { startMonth, endMonth: startMonth + sunEraMonths - 1 };
+}
+
+export function sunEraToYear(sunEra: number, params: Pick<SimParams, "growingMonths" | "winterMonths" | "sunEraMonths">): number {
+  const range = sunEraToMonthRange(sunEra, params);
+  return Math.floor((range.startMonth - 1) / MONTHS_PER_YEAR) + 1;
+}
 
 function getDailyKcalRequirement(params: SimParams) {
   return params.households * (
@@ -293,7 +318,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   const initialSheep = params.households * params.animalsPerHH.sheep;
 
   const activeAcres = params.totalAcres * (1 - params.fallowPct / 100);
-  const YEARS_PER_ITERATION = 5;
+  const SUN_ERAS_PER_ITERATION = 5;
+  const sunEraMonths = getSunEraMonths(params);
   const CROP_MATURATION_MONTHS = 8;
   const firstHarvestMonth = Math.max(1, Math.min(params.growingMonths, CROP_MATURATION_MONTHS));
   
@@ -353,7 +379,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
     }
     
     // Simulate X years continuously
-    for (let year = 1; year <= YEARS_PER_ITERATION; year++) {
+    for (let sunEra = 1; sunEra <= SUN_ERAS_PER_ITERATION; sunEra++) {
       let hadShortage = false;
       let hadSevere = false;
       let animalDeath = false;
@@ -377,9 +403,9 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
       const hAcres = hAcresConst;
 
       // Simulate 12 months: Growing season then Winter
-      for (let month = 1; month <= params.growingMonths + params.winterMonths; month++) {
+      for (let month = 1; month <= sunEraMonths; month++) {
         const isWinter = month > params.growingMonths;
-        const absoluteMonth = (year - 1) * (params.growingMonths + params.winterMonths) + month;
+        const absoluteMonth = (sunEra - 1) * sunEraMonths + month;
         const calendarMonth = ((absoluteMonth - 1) % 12) + 1;
         const growingMonth = month <= params.growingMonths ? month : 0;
         const cycleMonth = growingMonth > 0 ? ((growingMonth - 1) % CROP_MATURATION_MONTHS) + 1 : 0;
@@ -738,8 +764,8 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         // Record history for the FIRST iteration ONLY
         if (i === 0) {
           exampleHistory.push({
-            month: month + ((year - 1) * (params.growingMonths + params.winterMonths)),
-            year,
+            month: absoluteMonth,
+            year: sunEraToYear(sunEra, params),
             wheat: Math.round(wheatStocks),
             barley: Math.round(barleyStocks),
             oats: Math.round(oatStocks),
@@ -774,18 +800,28 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
     totalOatsEnd += oatStocks;
   }
 
-  const dietDenominator = iterations * YEARS_PER_ITERATION * params.households;
-  const annualDenominator = iterations * YEARS_PER_ITERATION;
+  const dietDenominator = iterations * SUN_ERAS_PER_ITERATION * params.households;
+  const sunEraDenominator = iterations * SUN_ERAS_PER_ITERATION;
+  const humanShortagePerSunEra = shortageCount / sunEraDenominator;
+  const severeShortagePerSunEra = severeShortageCount / sunEraDenominator;
+  const animalDeathPerSunEra = animalDeathCount / sunEraDenominator;
+  const fuelShortagePerSunEra = fuelShortageCount / sunEraDenominator;
+  const clothingShortagePerSunEra = clothingShortageCount / sunEraDenominator;
 
   return {
-    humanShortageObj: shortageCount / annualDenominator,
-    severeShortageObj: severeShortageCount / annualDenominator,
-    animalDeathObj: animalDeathCount / annualDenominator,
-    fuelShortageObj: fuelShortageCount / annualDenominator,
-    clothingShortageObj: clothingShortageCount / annualDenominator,
+    humanShortagePerSunEra,
+    severeShortagePerSunEra,
+    animalDeathPerSunEra,
+    fuelShortagePerSunEra,
+    clothingShortagePerSunEra,
+    humanShortageObj: humanShortagePerSunEra,
+    severeShortageObj: severeShortagePerSunEra,
+    animalDeathObj: animalDeathPerSunEra,
+    fuelShortageObj: fuelShortagePerSunEra,
+    clothingShortageObj: clothingShortagePerSunEra,
     avgWheatRemaining: totalWheatEnd / iterations,
     avgOatsRemaining: totalOatsEnd / iterations,
-    avgWoolPerYear: totalWoolProduced / (iterations * YEARS_PER_ITERATION),
+    avgWoolPerYear: totalWoolProduced / (iterations * SUN_ERAS_PER_ITERATION),
     logs: [], // Add debug logs if necessary
     history: exampleHistory,
     diet: {

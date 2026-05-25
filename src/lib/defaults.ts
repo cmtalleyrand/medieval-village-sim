@@ -4,6 +4,7 @@ export const DEFAULTS: SimParams = {
   households: 20,
   growingMonths: 7,
   winterMonths: 5,
+  sunEraMonths: 12,
   totalAcres: 1200,
   fallowPct: 33.3, // 1/3 of total
   landSplit: { // sums to 100% of the active land
