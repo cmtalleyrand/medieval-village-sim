@@ -211,6 +211,9 @@ const CROP_HARVEST_DELTA_MAX: Record<'wheat' | 'barley' | 'oats', number> = {
 
 const HAY_FIRST_CUT_THRESHOLD = 1.0;
 const HAY_REGROWTH_CUT_THRESHOLD = 2.0;
+const HAY_POST_MOW_GU_RESIDUAL_FACTOR = 0.5;
+const INTENSE_GRAZING_TRIGGER = 0.03;
+const INTENSE_GRAZING_MAX_SHARE = 0.6;
 
 // ── Livestock constants ───────────────────────────────────────────────────────
 
@@ -867,7 +870,7 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
               hayStocks += hayHarvested; fHHay += hayHarvested; fHayCuts++;
               hayFirstCutDone = true;
               state.mowScheduledForNextMonth = true;
-              state.growthUnits = 0;
+              state.growthUnits = HAY_POST_MOW_GU_RESIDUAL_FACTOR * hayFertility;
             }
           }
 
@@ -895,6 +898,20 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         pastureState.hay = 0;
         pastureState.normalGrazing = pastureState.totalArea;
         pastureState.intenseGrazing = 0;
+
+        const totalGrazingAreaNextMonth = meadowState.normalGrazing + pastureState.normalGrazing;
+        if (totalGrazingAreaNextMonth > 0 && !isWinter) {
+          const pressure = grazingNeedThisMonth / totalGrazingAreaNextMonth;
+          const intenseShare = pressure > INTENSE_GRAZING_TRIGGER
+            ? Math.min(INTENSE_GRAZING_MAX_SHARE, (pressure - INTENSE_GRAZING_TRIGGER) / INTENSE_GRAZING_TRIGGER)
+            : 0;
+          [meadowState, pastureState].forEach(state => {
+            const grazingArea = state.normalGrazing;
+            const intenseArea = grazingArea * intenseShare;
+            state.normalGrazing = grazingArea - intenseArea;
+            state.intenseGrazing = intenseArea;
+          });
+        }
 
         // ── Pre-winter culling ──
         if (isLastGrowingMonth) {
