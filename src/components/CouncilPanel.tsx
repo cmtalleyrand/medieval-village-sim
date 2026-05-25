@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Castle, Wheat, Trees, Settings2, ChevronDown, ChevronRight, Sparkles, Calculator, Users, Sprout, Beef, Flame, Lock, Unlock } from 'lucide-react';
 import { Card, CardHeader, Fleuron, Tooltip, IconButton } from './ui';
-import { SimParams, autoAllocateLand, solveMinimumAcres } from '../lib/simulation';
+import { SimParams, autoAllocateLand, solveLandForRiskTarget, solveMinimumAcres, planVillageResources } from '../lib/simulation';
 
 interface Props {
   params: SimParams;
@@ -82,9 +82,13 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
 
   const handleSolveAcres = () => {
     setAndCommitParams(prev => {
-      const min = solveMinimumAcres(prev);
-      const np = { ...prev, totalAcres: min };
-      return { ...np, landSplit: autoAllocateLand(np) };
+      const solved = solveLandForRiskTarget(prev, 0.05);
+      return {
+        ...prev,
+        totalAcres: solved.totalAcres,
+        woodlandAcres: solved.woodlandAcres,
+        landSplit: solved.landSplit,
+      };
     });
   };
 
@@ -97,6 +101,29 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
   );
   const totalCattle = params.households * (params.animalsPerHH.oxen + params.animalsPerHH.cows);
   const totalSheep = params.households * params.animalsPerHH.sheep;
+  const sheepRams = totalSheep * 0.2;
+  const sheepEwes = totalSheep * 0.5;
+  const sheepLambs = totalSheep * 0.3;
+  const plannerReport = useMemo(() => planVillageResources(params, 'fixed-total-land'), [params]);
+  const barleySharePct = Math.max(0, (plannerReport.slacks.barleyLower + 0.10) * 100);
+  const feedMargin = Math.min(plannerReport.slacks.oatsFeed, plannerReport.slacks.hayFeed);
+  const limitingLabels: Record<string, string> = {
+    calorie: 'Calories',
+    barleyLower: 'Barley lower',
+    barleyUpper: 'Barley upper',
+    oatsFeed: 'Oats feed',
+    hayFeed: 'Hay feed',
+    fuel: 'Fuel',
+    tractionOxen: 'Traction oxen',
+    cowsToOxen: 'Cow ratio',
+    bullsToCows: 'Bull ratio',
+    sheepClothing: 'Wool',
+    totalLand: 'Total land',
+  };
+  const bindingConstraints = Object.entries(plannerReport.slacks as Record<string, number>)
+    .map(([key, slack]) => ({ key, slack, magnitude: Math.abs(slack) }))
+    .sort((a, b) => a.magnitude - b.magnitude)
+    .slice(0, 4);
 
   return (
     <div className="space-y-4">
@@ -136,10 +163,28 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
             onCommit={commitParams}
           />
         </div>
-        <div className="grid grid-cols-3 gap-2 text-center pt-3 border-t border-[rgba(120,80,30,0.18)]">
-          <Stat icon={<Users className="w-3.5 h-3.5" />} label="Souls" value={totalSouls} />
-          <Stat icon={<Beef className="w-3.5 h-3.5" />} label="Cattle" value={totalCattle} />
-          <Stat icon={<span className="text-[10px]">🐑</span>} label="Sheep" value={totalSheep} />
+        <div className="pt-3 border-t border-[rgba(120,80,30,0.18)] space-y-3">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <Stat icon={<Users className="w-3.5 h-3.5" />} label="Souls" value={totalSouls} />
+            <Stat icon={<Beef className="w-3.5 h-3.5" />} label="Cattle" value={totalCattle} />
+            <Stat icon={<span className="text-[10px]">🐑</span>} label="Sheep" value={totalSheep} />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <NumberField step={1} label="Men" value={params.peoplePerHH.male * params.households} onChange={v => setNested('peoplePerHH', 'male', v / Math.max(1, params.households))} onCommit={commitParams} />
+            <NumberField step={1} label="Women" value={params.peoplePerHH.female * params.households} onChange={v => setNested('peoplePerHH', 'female', v / Math.max(1, params.households))} onCommit={commitParams} />
+            <NumberField step={1} label="Children" value={params.peoplePerHH.child * params.households} onChange={v => setNested('peoplePerHH', 'child', v / Math.max(1, params.households))} onCommit={commitParams} />
+          </div>
+          <div className="grid grid-cols-4 gap-3">
+            <NumberField step={1} label="Cows" value={params.animalsPerHH.cows * params.households} onChange={v => setNested('animalsPerHH', 'cows', v / Math.max(1, params.households))} onCommit={commitParams} />
+            <NumberField step={1} label="Oxen" value={params.animalsPerHH.oxen * params.households} onChange={v => setNested('animalsPerHH', 'oxen', v / Math.max(1, params.households))} onCommit={commitParams} />
+            <NumberField step={1} label="Bulls" value={params.bullsPerCow * params.animalsPerHH.cows * params.households} onChange={v => setField('bullsPerCow', v / Math.max(1, params.animalsPerHH.cows * params.households))} onCommit={commitParams} />
+            <NumberField step={1} label="Calves" value={params.animalsPerHH.cows * params.households * 0.2} onChange={v => setNested('animalsPerHH', 'cows', (v / 0.2) / Math.max(1, params.households))} onCommit={commitParams} />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <NumberField step={1} label="Rams" value={sheepRams} onChange={v => setNested('animalsPerHH', 'sheep', (v + sheepEwes + sheepLambs) / Math.max(1, params.households))} onCommit={commitParams} />
+            <NumberField step={1} label="Ewes" value={sheepEwes} onChange={v => setNested('animalsPerHH', 'sheep', (sheepRams + v + sheepLambs) / Math.max(1, params.households))} onCommit={commitParams} />
+            <NumberField step={1} label="Lambs" value={sheepLambs} onChange={v => setNested('animalsPerHH', 'sheep', (sheepRams + sheepEwes + v) / Math.max(1, params.households))} onCommit={commitParams} />
+          </div>
         </div>
       </Card>
 
@@ -211,9 +256,9 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
                 wheat: '#d9a93f', barley: '#c46a1a', oats: '#8fa848', hay: '#5a7745',
               };
               const tip: Record<string, string> = {
-                wheat: 'Primary bread grain. ~8 bu/ac. Highest kcal per bushel.',
-                barley: 'Brewed into ale (~20% of monthly kcal demand under the 365/12 planning basis). ~10 bu/ac.',
-                oats: 'Animal feed first; emergency human food. ~10 bu/ac.',
+                wheat: 'Primary bread grain. 10 bu/ac gross yield; 2.5 bu/ac reserved for seed. Highest kcal per bushel.',
+                barley: 'Brewed into ale (~20% of monthly kcal demand under the 365/12 planning basis). 12 bu/ac gross yield; 4 bu/ac reserved for seed.',
+                oats: 'Animal feed first; emergency human food. 12 bu/ac gross yield; 4 bu/ac reserved for seed.',
                 hay: 'Cultivated meadow for winter livestock feed. ~1.2 tons/ac.',
               };
               const acres = Math.round((activeAcres * params.landSplit[crop]) / 100);
@@ -254,6 +299,57 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
                 </div>
               );
             })}
+          </div>
+
+          <div className="parchment rounded-sm p-3 border border-[rgba(120,80,30,0.22)] space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-[var(--font-display)] uppercase tracking-[0.14em] text-[0.65rem] text-[var(--color-ink-400)] font-semibold">
+                Solver report
+              </span>
+              <span className={`text-[0.66rem] font-bold ${plannerReport.feasible ? 'text-[var(--color-moss-600)]' : 'text-[var(--color-crimson-500)]'}`}>
+                {plannerReport.feasible ? 'Feasible' : 'Infeasible'}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-[0.7rem] tabular-nums">
+              <MiniMetric label="Farmland" value={plannerReport.solution.farmlandAcres} unit="ac" />
+              <MiniMetric label="Pasture" value={plannerReport.solution.pastureAcres} unit="ac" />
+              <MiniMetric label="Forest" value={plannerReport.solution.forestAcres} unit="ac" />
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-[0.7rem] tabular-nums">
+              <MiniMetric label="Wheat" value={(plannerReport.solution.wheatAcres / Math.max(0.000001, plannerReport.solution.activeFarmlandAcres)) * 100} unit="%" suffix={` · ${plannerReport.solution.wheatAcres.toFixed(1)} ac`} />
+              <MiniMetric label="Barley" value={(plannerReport.solution.barleyAcres / Math.max(0.000001, plannerReport.solution.activeFarmlandAcres)) * 100} unit="%" suffix={` · ${plannerReport.solution.barleyAcres.toFixed(1)} ac`} />
+              <MiniMetric label="Oats" value={(plannerReport.solution.oatAcres / Math.max(0.000001, plannerReport.solution.activeFarmlandAcres)) * 100} unit="%" suffix={` · ${plannerReport.solution.oatAcres.toFixed(1)} ac`} />
+              <MiniMetric label="Hay" value={(plannerReport.solution.hayAcres / Math.max(0.000001, plannerReport.solution.activeFarmlandAcres)) * 100} unit="%" suffix={` · ${plannerReport.solution.hayAcres.toFixed(1)} ac`} />
+            </div>
+            <div className="grid grid-cols-4 gap-2 text-[0.7rem] tabular-nums">
+              <MiniMetric label="Sheep" value={plannerReport.solution.sheep} />
+              <MiniMetric label="Oxen" value={plannerReport.solution.oxen} />
+              <MiniMetric label="Cows" value={plannerReport.solution.cows} />
+              <MiniMetric label="Bulls" value={plannerReport.solution.bulls} />
+            </div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[0.68rem] tabular-nums">
+              <PolicyMetric label="Barley share" value={barleySharePct} unit="%" />
+              <PolicyMetric label="Kcal margin" value={plannerReport.slacks.calorie} unit="kcal" />
+              <PolicyMetric label="Feed margin" value={feedMargin} unit="units" />
+              <PolicyMetric label="Fuel margin" value={plannerReport.slacks.fuel} unit="loads" />
+            </div>
+            <div className="space-y-1.5">
+              {plannerReport.constraintAudit.map(({ key, label, unit, required, supplied, slack }) => {
+                return (
+                  <div key={key} className="flex items-center justify-between border-b border-[rgba(120,80,30,0.14)] pb-1 text-[0.66rem] tabular-nums">
+                    <span className="text-[var(--color-ink-400)]">{label}</span>
+                    <span className="text-[var(--color-ink-500)]">need {required.toFixed(1)} {unit} · have {supplied.toFixed(1)} {unit} · margin {slack >= 0 ? '+' : ''}{slack.toFixed(1)} {unit}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {bindingConstraints.map(({ key, slack }) => (
+                <span key={key} className="px-2 py-0.5 rounded-sm bg-[rgba(120,80,30,0.10)] text-[0.62rem] text-[var(--color-ink-400)] tabular-nums">
+                  {limitingLabels[key] ?? key}: {slack.toFixed(3)}
+                </span>
+              ))}
+            </div>
           </div>
 
           <div>
@@ -339,13 +435,6 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
               </div>
             </Subsection>
 
-            <Subsection icon={<Users className="w-4 h-4" />} title="Household Composition">
-              <div className="grid grid-cols-3 gap-3">
-                <NumberField step={0.1} label="Males" value={params.peoplePerHH.male} onChange={v => setNested('peoplePerHH', 'male', v)} onCommit={commitParams} />
-                <NumberField step={0.1} label="Females" value={params.peoplePerHH.female} onChange={v => setNested('peoplePerHH', 'female', v)} onCommit={commitParams} />
-                <NumberField step={0.1} label="Children" value={params.peoplePerHH.child} onChange={v => setNested('peoplePerHH', 'child', v)} onCommit={commitParams} />
-              </div>
-            </Subsection>
           </div>
         )}
       </div>
@@ -367,18 +456,32 @@ function Label({ children, tooltip }: { children: React.ReactNode; tooltip?: str
 }
 
 function NumberField({ label, value, onChange, onCommit, step, tooltip }: { label: string; value: number; onChange: (v: number) => void; onCommit?: () => void; step?: number; tooltip?: string }) {
+  const delta = step ?? 1;
+  const roundedValue = Number.isInteger(delta) ? Math.round(value) : value;
+
+  const applyDelta = (direction: -1 | 1) => {
+    onChange(value + (direction * delta));
+    onCommit?.();
+  };
+
   return (
     <div>
       <Label tooltip={tooltip}>{label}</Label>
-      <input
-        type="number"
-        step={step}
-        value={value}
-        onChange={e => onChange(Number(e.target.value))}
-        onBlur={onCommit}
-        onKeyDown={e => e.key === 'Enter' && onCommit?.()}
-        className="scriptorium mt-1"
-      />
+      <div className="mt-1 flex items-center gap-1.5">
+        <input
+          type="number"
+          step={step}
+          value={roundedValue}
+          onChange={e => onChange(Number(e.target.value))}
+          onBlur={onCommit}
+          onKeyDown={e => e.key === 'Enter' && onCommit?.()}
+          className="scriptorium flex-1"
+        />
+        <div className="flex flex-col items-center gap-0.5">
+          <button title={`Increase ${label}`} onClick={() => applyDelta(1)} className="btn-wood w-3.5 h-3.5 text-[0.52rem] inline-flex items-center justify-center p-0 leading-none">+</button>
+          <button title={`Decrease ${label}`} onClick={() => applyDelta(-1)} className="btn-wood w-3.5 h-3.5 text-[0.52rem] inline-flex items-center justify-center p-0 leading-none">−</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -407,6 +510,26 @@ function Subsection({ icon, title, children }: { icon: React.ReactNode; title: s
         </span>
       </div>
       {children}
+    </div>
+  );
+}
+
+function MiniMetric({ label, value, unit, suffix }: { label: string; value: number; unit?: string; suffix?: string }) {
+  return (
+    <div className="rounded-sm bg-[rgba(120,80,30,0.08)] px-2 py-1">
+      <div className="text-[0.58rem] uppercase tracking-[0.12em] text-[var(--color-ink-300)]">{label}</div>
+      <div className="text-[0.74rem] text-[var(--color-ink-500)] font-semibold tabular-nums">
+        {value.toFixed(unit === '%' ? 1 : 2)}{unit ? ` ${unit}` : ''}{suffix ?? ''}
+      </div>
+    </div>
+  );
+}
+
+function PolicyMetric({ label, value, unit }: { label: string; value: number; unit: string }) {
+  return (
+    <div className="flex items-center justify-between border-b border-[rgba(120,80,30,0.14)] pb-1">
+      <span className="text-[var(--color-ink-400)]">{label}</span>
+      <span className="font-semibold text-[var(--color-ink-500)]">{value.toFixed(2)} {unit}</span>
     </div>
   );
 }

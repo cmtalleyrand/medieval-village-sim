@@ -13,9 +13,9 @@ export const DEFAULTS: SimParams = {
     hay: 30,
   },
   yields: {
-    wheat: 8,   // Bushels per acre (historical ~8-12)
-    barley: 10,
-    oats: 10,
+    wheat: 10,   // Bushels per acre (gross of seed)
+    barley: 12,
+    oats: 12,
     hay: 1.2,    // Tons per acre
   },
   yieldVariability: 15, // % Standard Deviation
@@ -64,8 +64,8 @@ export const DEFAULTS: SimParams = {
     cattleMeatCalf: 75000,         // kcal per calf culled
   },
   cropStats: {
-    wheat: { kcalPerBu: 90000, seedRate: 2 }, // 60 lbs * 1500 kcal
-    barley: { kcalPerBu: 75000, seedRate: 2.5 }, // 50 lbs * 1500 kcal
+    wheat: { kcalPerBu: 90000, seedRate: 2.5 }, // 60 lbs * 1500 kcal
+    barley: { kcalPerBu: 75000, seedRate: 4 }, // 50 lbs * 1500 kcal
     oats: { kcalPerBu: 38000, seedRate: 4 }, // 32 lbs * 1200 kcal
   }
 };

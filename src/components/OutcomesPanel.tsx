@@ -74,34 +74,34 @@ export function OutcomesPanel({ results, params, isSimulating }: Props) {
       <Card>
         <CardHeader
           title="Tides of Fortune"
-          subtitle={`Per-cycle probability across 500 simulated cycles (100 runs × 5 cycles each)`}
+          subtitle={`Per-sun-era probability across 500 simulated sun-eras (100 runs × 5 sun-eras each)`}
           icon={<AlertTriangle className="w-5 h-5" />}
         />
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
           <RiskMeter
             label="Famine"
-            value={results.humanShortageObj * 100}
-            tooltip="Fraction of simulated cycles in which any caloric deficit was recorded."
+            value={results.humanShortagePerSunEra * 100}
+            tooltip="Fraction of simulated sun-eras in which any caloric deficit was recorded."
           />
           <RiskMeter
             label="Severe Famine"
-            value={results.severeShortageObj * 100}
-            tooltip="Share of cycles with deficits exceeding 20 % of one planning-month of demand (annual demand ÷ 12)."
+            value={results.severeShortagePerSunEra * 100}
+            tooltip="Share of sun-eras with deficits exceeding 20 % of one planning-month of demand (annual demand ÷ 12)."
           />
           <RiskMeter
             label="Beast Loss"
-            value={results.animalDeathObj * 100}
-            tooltip="Fraction of cycles in which livestock die from feed stress or emergency culling."
+            value={results.animalDeathPerSunEra * 100}
+            tooltip="Fraction of sun-eras in which livestock die from feed stress or emergency culling."
           />
           <RiskMeter
             label="Cold Hearth"
-            value={results.fuelShortageObj * 100}
-            tooltip="Fraction of cycles with any fuel shortage that triggers calorie-need penalties."
+            value={results.fuelShortagePerSunEra * 100}
+            tooltip="Fraction of sun-eras with any fuel shortage that triggers calorie-need penalties."
           />
           <RiskMeter
             label="Bare Backs"
-            value={results.clothingShortageObj * 100}
-            tooltip="Fraction of cycles in which wool shorn (after tithe) falls short of the village's clothing need. Set clothing need per person in the Steward's Ledger."
+            value={results.clothingShortagePerSunEra * 100}
+            tooltip="Fraction of sun-eras in which wool shorn (after tithe) falls short of the village's clothing need. Set clothing need per person in the Steward's Ledger."
           />
         </div>
       </Card>
@@ -141,7 +141,7 @@ export function OutcomesPanel({ results, params, isSimulating }: Props) {
           </div>
         </div>
 
-        <Fleuron>Spring Carry-over</Fleuron>
+        <Fleuron>Spring Carry-over (per sun-era; year metrics remain derived)</Fleuron>
 
         <div className="grid grid-cols-3 gap-2">
           <CarryStat
@@ -168,8 +168,31 @@ export function OutcomesPanel({ results, params, isSimulating }: Props) {
           />
         </div>
       </Card>
+
+      <Card>
+        <CardHeader
+          title="Physical Output Ledger"
+          subtitle="Primary quantities in physical units"
+          icon={<ShieldCheck className="w-5 h-5" />}
+        />
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 text-[0.75rem]">
+          <LedgerRow label="Wheat" value={`${Math.round(results.conversionAudit.physicalOutputs.grainBushels.wheat).toLocaleString()} bu`} />
+          <LedgerRow label="Barley" value={`${Math.round(results.conversionAudit.physicalOutputs.grainBushels.barley).toLocaleString()} bu`} />
+          <LedgerRow label="Oats" value={`${Math.round(results.conversionAudit.physicalOutputs.grainBushels.oats).toLocaleString()} bu`} />
+          <LedgerRow label="Hay" value={`${Math.round(results.conversionAudit.physicalOutputs.hayTons).toLocaleString()} tons`} />
+          <LedgerRow label="Cow milk" value={`${Math.round(results.conversionAudit.physicalOutputs.milkGallons.cow).toLocaleString()} gal/yr`} />
+          <LedgerRow label="Ewe milk" value={`${Math.round(results.conversionAudit.physicalOutputs.milkGallons.ewe).toLocaleString()} gal/yr`} />
+          <LedgerRow label="Wool" value={`${Math.round(results.conversionAudit.physicalOutputs.woolLbs).toLocaleString()} lb`} />
+          <LedgerRow label="Cloth" value={`${Math.round(results.conversionAudit.physicalOutputs.clothYards).toLocaleString()} yd`} />
+          <LedgerRow label="Sheep meat" value={`${Math.round(results.conversionAudit.physicalOutputs.meatLbs.sheep).toLocaleString()} lb`} />
+        </div>
+      </Card>
     </div>
   );
+}
+
+function LedgerRow({ label, value }: { label: string; value: string }) {
+  return <div className="flex justify-between border-b border-[rgba(120,80,30,0.18)] py-1"><span>{label}</span><span className="tabular-nums">{value}</span></div>;
 }
 
 function DietSegment({ color, pct, label }: { color: string; pct: number; label: string }) {

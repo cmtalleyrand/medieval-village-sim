@@ -4,6 +4,7 @@ export interface SimParams {
   households: number;
   growingMonths: number;
   winterMonths: number;
+  sunEraMonths?: number;
   totalAcres: number;
   fallowPct: number;
   landSplit: {
@@ -96,6 +97,48 @@ export interface MonthHistory {
   fertility: number;
 }
 
+
+export interface FuelAudit {
+  volumeM3: number;
+  massKg: number;
+  grossEnergyKcal: number;
+  usableHeatKcal: number;
+}
+
+export interface FoodPathwayAudit {
+  volumeM3: number | null;
+  weightKg: number;
+  energy: {
+    ruminantOnlyKcal: number;
+    animalDirectKcal: number;
+    humanProcessedKcal: number;
+    processingWasteAnimalKcal: number;
+    humanDirectKcal: number;
+  };
+}
+
+export interface ConversionAudit {
+  fuel: {
+    annualGathered: FuelAudit;
+    annualWinterDemand: FuelAudit;
+  };
+  foods: {
+    wheat: FoodPathwayAudit;
+    barley: FoodPathwayAudit;
+    oats: FoodPathwayAudit;
+    hay: FoodPathwayAudit;
+    dairy: FoodPathwayAudit;
+    meat: FoodPathwayAudit;
+  };
+  physicalOutputs: {
+    grainBushels: { wheat: number; barley: number; oats: number };
+    hayTons: number;
+    woolLbs: number;
+    clothYards: number;
+    milkGallons: { cow: number; ewe: number };
+    meatLbs: { cattleAdult: number; calf: number; sheep: number };
+  };
+}
 export interface HumanDiet {
   wheat: number;
   barley: number;
@@ -326,6 +369,25 @@ const GRASS_TO_HAY_KCAL_RATIO = 3.6;
 const RATIO_EPSILON = 1e-12;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+export function getSunEraMonths(params: Pick<SimParams, "growingMonths" | "winterMonths" | "sunEraMonths">): number {
+  return params.sunEraMonths ?? (params.growingMonths + params.winterMonths);
+}
+
+export function monthToSunEra(monthIndex: number, params: Pick<SimParams, "growingMonths" | "winterMonths" | "sunEraMonths">): number {
+  return Math.floor((monthIndex - 1) / getSunEraMonths(params)) + 1;
+}
+
+export function sunEraToMonthRange(sunEra: number, params: Pick<SimParams, "growingMonths" | "winterMonths" | "sunEraMonths">): { startMonth: number; endMonth: number } {
+  const sunEraMonths = getSunEraMonths(params);
+  const startMonth = (sunEra - 1) * sunEraMonths + 1;
+  return { startMonth, endMonth: startMonth + sunEraMonths - 1 };
+}
+
+export function sunEraToYear(sunEra: number, params: Pick<SimParams, "growingMonths" | "winterMonths" | "sunEraMonths">): number {
+  const range = sunEraToMonthRange(sunEra, params);
+  return Math.floor((range.startMonth - 1) / MONTHS_PER_YEAR) + 1;
+}
 
 function getDailyKcalRequirement(params: SimParams) {
   return params.households * (
@@ -1358,13 +1420,64 @@ export function autoAllocateLand(params: SimParams): SimParams["landSplit"] {
   };
 }
 
+
+export interface RiskTargetSolution {
+  totalAcres: number;
+  woodlandAcres: number;
+  landSplit: SimParams["landSplit"];
+  famineRisk: number;
+  severeFamineRisk: number;
+}
+
+function evaluateRiskCandidate(params: SimParams, totalAcres: number, woodlandAcres: number, runs: number) {
+  const candidate: SimParams = { ...params, totalAcres, woodlandAcres };
+  const result = runSimulation(candidate, runs);
+  return { famineRisk: result.humanShortageObj, severeFamineRisk: result.severeShortageObj };
+}
+
+export function solveLandForRiskTarget(params: SimParams, targetRisk = 0.05, runs = 120): RiskTargetSolution {
+  const plan = planVillageResources(params, "min-total-land");
+  const farmlandBase = Math.max(1, Math.ceil(plan.solution.farmlandAcres));
+  const woodlandBase = Math.max(1, Math.ceil(plan.solution.forestAcres));
+  const landSplit = autoAllocateLand({ ...params, totalAcres: farmlandBase, woodlandAcres: woodlandBase });
+
+  let low = 0.5;
+  let high = 1;
+  let highEval = evaluateRiskCandidate({ ...params, landSplit }, Math.ceil(farmlandBase * high), Math.ceil(woodlandBase * high), runs);
+  while ((highEval.famineRisk > targetRisk || highEval.severeFamineRisk > targetRisk) && high < 8) {
+    low = high;
+    high *= 1.5;
+    highEval = evaluateRiskCandidate({ ...params, landSplit }, Math.ceil(farmlandBase * high), Math.ceil(woodlandBase * high), runs);
+  }
+
+  for (let i = 0; i < 18; i++) {
+    const mid = (low + high) / 2;
+    const acres = Math.ceil(farmlandBase * mid);
+    const woods = Math.ceil(woodlandBase * mid);
+    const risk = evaluateRiskCandidate({ ...params, landSplit }, acres, woods, runs);
+    if (risk.famineRisk <= targetRisk && risk.severeFamineRisk <= targetRisk) {
+      high = mid;
+      highEval = risk;
+    } else {
+      low = mid;
+    }
+  }
+
+  return {
+    totalAcres: Math.ceil(farmlandBase * high / 10) * 10,
+    woodlandAcres: Math.ceil(woodlandBase * high / 10) * 10,
+    landSplit,
+    famineRisk: highEval.famineRisk,
+    severeFamineRisk: highEval.severeFamineRisk,
+  };
+}
 export function solveMinimumAcres(params: SimParams): number {
   const report = planVillageResources(params, "min-total-land");
   return Math.ceil(report.solution.totalLandAcres / 10) * 10;
 }
 
-type PlannerMode = "min-total-land" | "fixed-total-land";
-interface PlannerReport {
+export type PlannerMode = "min-total-land" | "fixed-total-land";
+export interface PlannerReport {
   mode: PlannerMode;
   feasible: boolean;
   objectiveValue: number;
@@ -1384,6 +1497,14 @@ interface PlannerReport {
     bulls: number;
   };
   slacks: Record<string, number>;
+  constraintAudit: Array<{
+    key: string;
+    label: string;
+    unit: string;
+    required: number;
+    supplied: number;
+    slack: number;
+  }>;
 }
 
 export function planVillageResources(params: SimParams, mode: PlannerMode = "min-total-land"): PlannerReport {
@@ -1476,6 +1597,7 @@ export function planVillageResources(params: SimParams, mode: PlannerMode = "min
       wheatAcres, barleyAcres, oatAcres, hayAcres, sheep, oxen, cows, bulls,
     },
     slacks,
+    constraintAudit,
   };
 }
 
