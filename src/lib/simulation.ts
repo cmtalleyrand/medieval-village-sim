@@ -27,6 +27,12 @@ export interface SimParams {
   woolPerSheep: number;
   clothingNeedWoolLbs: number;
   woodlandAcres: number;
+  // Meadowland: permanently wet, low-lying ground (typically near water). Never plowed or
+  // cropped. Fertility maintained by seasonal flooding and silt deposit — independent of
+  // the arable rotation model. Produces hay cut once per growing season at Midsummer,
+  // then provides aftermath grazing for the rest of the growing season.
+  meadowAcres: number;
+  meadowHayYieldPerAcre: number;  // Tons of hay per meadow acre per cut (typically higher than arable hay)
   fuelYieldPerAcre: number;
   fuelNeedsSummer: number;
   fuelNeedsWinter: number;
@@ -197,9 +203,16 @@ const WINTER_FALLOW_RECOVERY: Record<'winter' | 'deep_winter', number> = {
 // values capture biology, not a specific calendar configuration.
 
 const CROP_MATURITY: Record<'wheat' | 'barley' | 'oats', number> = {
+  // Derived from historical English harvest calendar (9/3 season, March=month 1):
+  // Wheat:  sown October (month 8), harvested August (month 6 of next year):
+  //         2×0.7(autumn) + 3×0.15(winter) + 3×0.7(spring) + 2×1.0(long_summer) = 5.95 GU
+  // Barley: sown April (month 2), harvested September (month 7):
+  //         2×0.7(spring) + 3×1.0(long_summer) + 1×0.7(autumn) = 5.1 GU
+  // Oats:   sown April (month 2), harvested August (month 6):
+  //         2×0.7(spring) + 3×1.0(long_summer) = 4.4 GU
   wheat: 5.95,
-  barley: 4.80,
-  oats: 4.10,
+  barley: 5.10,
+  oats: 4.40,
 };
 
 // GU past maturity before harvest is forced.

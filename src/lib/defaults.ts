@@ -2,8 +2,8 @@ import type { SimParams } from "./simulation";
 
 export const DEFAULTS: SimParams = {
   households: 20,
-  growingMonths: 7,
-  winterMonths: 5,
+  growingMonths: 9,   // Standard English growing season: March–November
+  winterMonths: 3,    // Standard English winter: December–February
   totalAcres: 1200,
   fallowPct: 33.3, // 1/3 of total
   landSplit: { // sums to 100% of the active land
@@ -27,6 +27,12 @@ export const DEFAULTS: SimParams = {
   woolPerSheep: 1.5, // lbs of wool per sheep per year
   clothingNeedWoolLbs: 1.5, // lbs of wool needed per person per year for basic garments
   woodlandAcres: 300, // Acres of woodland/commons for gathering fuel
+  // Meadowland: low-lying, permanently wet ground near water. Never plowed. Fertility
+  // maintained by seasonal flooding. Hay cut at Midsummer; aftermath grazed in autumn.
+  // Historically the binding constraint on winter livestock numbers. Separate from
+  // arable hay (which is grown in rotation on ordinary farmland).
+  meadowAcres: 60,              // Typically 5–10% of total village land
+  meadowHayYieldPerAcre: 1.5,   // Tons per acre — slightly above arable hay (1.2) due to natural flooding
   fuelYieldPerAcre: 1.5, // Cartloads of fuel gathered per acre of woodland per year
   fuelNeedsSummer: 0.5,      // Cartloads of fuel per household per month (cooking)
   fuelNeedsWinter: 1.5,      // Cartloads per household per month (shoulder winter)
