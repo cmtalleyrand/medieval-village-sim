@@ -211,6 +211,10 @@ const CROP_HARVEST_DELTA_MAX: Record<'wheat' | 'barley' | 'oats', number> = {
 
 const HAY_FIRST_CUT_THRESHOLD = 1.0;
 const HAY_REGROWTH_CUT_THRESHOLD = 2.0;
+const HAY_POST_MOW_GU_RESIDUAL_FACTOR = 0.5;
+const INTENSE_GRAZING_TRIGGER = 0.03;
+const INTENSE_GRAZING_MAX_SHARE = 0.6;
+const WINTER_GRASS_GROWTH_RATE = 0.2;
 
 // ── Livestock constants ───────────────────────────────────────────────────────
 
@@ -286,6 +290,15 @@ interface Sheep {
   lactationMonths: number;
   monthsSinceParturition: number;
   woolGrowthUnits: number;
+}
+
+interface LandCohortState {
+  totalArea: number;
+  hay: number;
+  normalGrazing: number;
+  intenseGrazing: number;
+  storedGrass: number;
+  growthUnits: number;
 }
 
 // ── Misc constants ────────────────────────────────────────────────────────────
@@ -419,10 +432,15 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
   const monthlyKcalReq = getMonthlyKcalRequirement(params);
   const G = params.growingMonths;
   const W = params.winterMonths;
+  const hasTwoSummerMonths = (() => {
+    for (let m = 1; m < G; m++) {
+      if (classifyMonth(m, G) === 'long_summer' && classifyMonth(m + 1, G) === 'long_summer') return true;
+    }
+    return false;
+  })();
 
   const activeAcres = params.totalAcres * (1 - params.fallowPct / 100);
   const YEARS_PER_ITERATION = 5;
-
   const wAcresConst = activeAcres * (params.landSplit.wheat / 100);
   const bAcresConst = activeAcres * (params.landSplit.barley / 100);
   const oAcresConst = activeAcres * (params.landSplit.oats / 100);
@@ -514,8 +532,24 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
       growthUnits: 0, isAutumnSown: false, harvested: false,
     }];
 
-    // Hay state
-    let hayGrowthUnits = 0;
+    // Land cohorts for grassland transitions (aggregate state only)
+    const meadowState: LandCohortState = {
+      totalArea: hAcresConst,
+      hay: hAcresConst,
+      normalGrazing: 0,
+      intenseGrazing: 0,
+      storedGrass: 0,
+      growthUnits: 0,
+    };
+    const pastureAreaBase = (initialSheepCount * params.pastureAcresPerSheep) + ((totalOxen + totalCows + totalBulls) * params.pastureAcresPerCattle);
+    const pastureState: LandCohortState = {
+      totalArea: pastureAreaBase,
+      hay: 0,
+      normalGrazing: pastureAreaBase,
+      intenseGrazing: 0,
+      storedGrass: 0,
+      growthUnits: 0,
+    };
     let hayFirstCutDone = false;
     let hayFertility = initialFertility;
 
@@ -818,23 +852,86 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             if (p.type === 'wheat' && p.growthUnits < CROP_MATURITY[p.type]) return;
             addHarvest(p.type, doHarvestParcel(p, p.type === 'wheat' ? wBaseYield : p.type === 'barley' ? bBaseYield : oBaseYield));
           });
-          // Reset hay accumulator for next growing season
-          hayGrowthUnits = 0;
           hayFirstCutDone = false;
         }
 
-        // ── Hay accumulation and cutting ──
-        if (!isWinter) {
-          hayGrowthUnits += HAY_GROWTH_RATE[season];
-          if (!hayFirstCutDone && hayGrowthUnits >= HAY_FIRST_CUT_THRESHOLD) {
-            const hayHarvested = hAcresConst * hBaseYield * hayFertility;
-            hayStocks += hayHarvested; fHHay += hayHarvested; fHayCuts++;
-            hayFirstCutDone = true; hayGrowthUnits = 0;
-          } else if (hayFirstCutDone && hayGrowthUnits >= HAY_REGROWTH_CUT_THRESHOLD) {
-            const hayHarvested = hAcresConst * hBaseYield * hayFertility * 0.7; // regrowth yields less
-            hayStocks += hayHarvested; fHHay += hayHarvested; fHayCuts++;
-            hayGrowthUnits = 0;
+        // ── Grassland cohort transitions (deterministic monthly order) ──
+        const winterSheepOnlyNeed = flock.length * 0.005;
+        const grazingNeedThisMonth = isWinter ? winterSheepOnlyNeed : herd.length * 0.02 + flock.length * 0.005;
+        const totalActiveGrazingArea = meadowState.normalGrazing + meadowState.intenseGrazing + pastureState.normalGrazing + pastureState.intenseGrazing;
+        let meadowCutThisMonth = false;
+        [meadowState, pastureState].forEach(state => {
+          // 1) seasonal growth update
+          const growthRate = isDeepWinter ? 0 : isWinter ? WINTER_GRASS_GROWTH_RATE : SEASON_GROWTH_RATE[season];
+          state.growthUnits += growthRate;
+          state.storedGrass += growthRate * (state.normalGrazing + 1.5 * state.intenseGrazing);
+
+          // 2) optional mowing decision
+          if (state.hay > 0 && !isWinter) {
+            const nextIsLongSummer = growingMonth < G && classifyMonth(growingMonth + 1, G) === 'long_summer';
+            const canMowNow = season === 'long_summer' && (!hasTwoSummerMonths || nextIsLongSummer);
+            const cutThreshold = hayFirstCutDone ? HAY_REGROWTH_CUT_THRESHOLD : HAY_FIRST_CUT_THRESHOLD;
+            if (canMowNow && state.growthUnits >= cutThreshold && state.hay > 0) {
+              const cutMod = hayFirstCutDone ? 0.7 : 1;
+              const hayHarvested = state.hay * hBaseYield * hayFertility * cutMod;
+              hayStocks += hayHarvested; fHHay += hayHarvested; fHayCuts++;
+              hayFirstCutDone = true;
+              state.growthUnits = HAY_POST_MOW_GU_RESIDUAL_FACTOR * hayFertility;
+              if (state === meadowState) meadowCutThisMonth = true;
+            }
           }
+
+          // 3) grazing consumption and storage update
+          const thisArea = state.normalGrazing + state.intenseGrazing;
+          if (thisArea > 0 && totalActiveGrazingArea > 0) {
+            const classGrazingShare = thisArea / totalActiveGrazingArea;
+            const demand = grazingNeedThisMonth * classGrazingShare;
+            state.storedGrass = Math.max(0, state.storedGrass - demand);
+          }
+        });
+
+        // 4) area reallocation for next month
+        let hasFutureMowWindow = false;
+        if (!isWinter) {
+          for (let m = growingMonth + 1; m <= G; m++) {
+            if (classifyMonth(m, G) !== 'long_summer') continue;
+            if (!hasTwoSummerMonths || (m < G && classifyMonth(m + 1, G) === 'long_summer')) {
+              hasFutureMowWindow = true;
+              break;
+            }
+          }
+        }
+        const wasLastHayCut = meadowCutThisMonth && !hasFutureMowWindow;
+        if (wasLastHayCut) {
+          meadowState.hay = 0;
+          meadowState.normalGrazing = 0;
+          meadowState.intenseGrazing = meadowState.totalArea;
+        } else {
+          meadowState.hay = meadowState.totalArea;
+          meadowState.normalGrazing = 0;
+          meadowState.intenseGrazing = 0;
+        }
+
+        pastureState.hay = 0;
+        pastureState.normalGrazing = pastureState.totalArea;
+        pastureState.intenseGrazing = 0;
+
+        const totalGrazingAreaNextMonth = meadowState.normalGrazing + pastureState.normalGrazing;
+        if (totalGrazingAreaNextMonth > 0 && !isWinter) {
+          const pressure = grazingNeedThisMonth / totalGrazingAreaNextMonth;
+          const intenseShare = pressure > INTENSE_GRAZING_TRIGGER
+            ? Math.min(INTENSE_GRAZING_MAX_SHARE, (pressure - INTENSE_GRAZING_TRIGGER) / INTENSE_GRAZING_TRIGGER)
+            : 0;
+          [meadowState, pastureState].forEach(state => {
+            const grazingArea = state.normalGrazing;
+            const intenseArea = grazingArea * intenseShare;
+            state.normalGrazing = grazingArea - intenseArea;
+            state.intenseGrazing = intenseArea;
+          });
+        }
+        if (isDeepWinter) {
+          meadowState.growthUnits = 0;
+          pastureState.growthUnits = 0;
         }
 
         // ── Pre-winter culling ──
