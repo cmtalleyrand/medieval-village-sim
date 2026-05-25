@@ -161,6 +161,17 @@ interface Cattle {
 const DAYS_PER_YEAR = 365;
 const MONTHS_PER_YEAR = 12;
 const WINTER_DAIRY_OUTPUT_FACTOR = 0.35;
+const KG_PER_BUSHEL_OATS_FALLBACK = 20;
+const KG_PER_TON = 907.18474;
+
+function getOatsFeedKcalPerBushel(params: SimParams): number {
+  const kgPerBu = params.foodEnergyModel.densitiesKgPerBu.oats || KG_PER_BUSHEL_OATS_FALLBACK;
+  return kgPerBu * params.foodEnergyModel.metabolizableKcalPerKg.oatsForRuminants;
+}
+
+function getHayFeedKcalPerTon(params: SimParams): number {
+  return KG_PER_TON * params.foodEnergyModel.metabolizableKcalPerKg.hayForRuminants;
+}
 
 export function getSunEraMonths(params: Pick<SimParams, "growingMonths" | "winterMonths" | "sunEraMonths">): number {
   return params.sunEraMonths ?? (params.growingMonths + params.winterMonths);
@@ -677,12 +688,15 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
         let hayNeeded = 0;
         let sheepHayNeeded = 0;
         let cattleHayNeeded = 0;
+        const oatsFeedKcalPerBushel = getOatsFeedKcalPerBushel(params);
+        const hayFeedKcalPerTon = getHayFeedKcalPerTon(params);
+        let cattleEnergyKcalRequired = 0;
+        let sheepEnergyKcalRequired = 0;
 
         if (isSeedPlanting) {
-            // Active oxen need some oats for spring planting
-            let activeOxen = 0;
-            herd.forEach(c => { if ((c.type === 'ox' || c.type === 'bull') && c.ageMonths >= 36) activeOxen++; });
-            oatsNeeded += activeOxen * (params.feedNeedsWinter.oxenOats / 2);
+            let activeDraftCattle = 0;
+            herd.forEach(c => { if ((c.type === 'ox' || c.type === 'bull') && c.ageMonths >= 36) activeDraftCattle++; });
+            oatsNeeded += activeDraftCattle * (params.feedNeedsWinter.oxenOats / 2);
         }
 
         if (isWinter) {
@@ -712,40 +726,46 @@ export function runSimulation(params: SimParams, iterations = 100): SimResult {
             }
             hayNeeded += sheepHayNeeded;
         }
-        if (hayStocks >= hayNeeded) {
-          hayStocks -= hayNeeded;
-          fAHay += hayNeeded;
-        } else {
-          fAHay += hayStocks;
-          const hayShortfall = hayNeeded - hayStocks;
-          hayStocks = 0;
-          const sheepHayShortfall = Math.min(hayShortfall, sheepHayNeeded);
-          if (sheepHayShortfall > 0 && currentSheep > 0) {
-              const sheepDying = Math.min(currentSheep, Math.ceil(sheepHayShortfall / Math.max(0.000001, params.feedNeedsWinter.sheepHay)));
-              currentSheep -= sheepDying;
-              animalDeath = true;
-          }
-          const cattleHayShortfall = Math.min(hayShortfall, cattleHayNeeded);
-          oatsNeeded += cattleHayShortfall * 10;
+
+        cattleEnergyKcalRequired = (cattleHayNeeded * hayFeedKcalPerTon) + (oatsNeeded * oatsFeedKcalPerBushel);
+        sheepEnergyKcalRequired = sheepHayNeeded * hayFeedKcalPerTon;
+
+        const hayForCattle = Math.min(hayStocks, cattleHayNeeded);
+        hayStocks -= hayForCattle;
+        fAHay += hayForCattle;
+        const cattleHayEnergyKcal = hayForCattle * hayFeedKcalPerTon;
+        const cattleHayEnergyKcalShortfall = Math.max(0, (cattleHayNeeded * hayFeedKcalPerTon) - cattleHayEnergyKcal);
+
+        const hayForSheep = Math.min(hayStocks, sheepHayNeeded);
+        hayStocks -= hayForSheep;
+        fAHay += hayForSheep;
+        const sheepEnergyKcalShortfall = Math.max(0, sheepEnergyKcalRequired - (hayForSheep * hayFeedKcalPerTon));
+        if (sheepEnergyKcalShortfall > 0 && currentSheep > 0) {
+            const sheepDying = Math.min(currentSheep, Math.ceil(sheepEnergyKcalShortfall / Math.max(1, params.feedNeedsWinter.sheepHay * hayFeedKcalPerTon)));
+            currentSheep -= sheepDying;
+            animalDeath = true;
         }
 
-        if (oatStocks >= oatsNeeded) {
-          oatStocks -= oatsNeeded;
-          fAOats += oatsNeeded;
-        } else {
-          fAOats += oatStocks;
-          const shortage = oatsNeeded - oatStocks;
-          oatStocks = 0;
-          animalDeath = true; // Feed shortage = animal deaths
-          
-          if (shortage > 0) {
-              const cattleDying = Math.min(herd.length, Math.ceil(shortage / params.feedNeedsWinter.cowOats));
-              herd.sort((a, b) => b.ageMonths - a.ageMonths); // Oldest first — least remaining productive value
-              herd.splice(0, cattleDying);
-          }
-          // Sheep are not culled here: this branch represents oat shortage for working cattle.
-        }
+        const oatsForBaseCattle = Math.min(oatStocks, oatsNeeded);
+        oatStocks -= oatsForBaseCattle;
+        fAOats += oatsForBaseCattle;
+        const baseOatEnergyKcal = oatsForBaseCattle * oatsFeedKcalPerBushel;
 
+        const maxSubstitutionOats = cattleHayEnergyKcalShortfall / Math.max(1, oatsFeedKcalPerBushel);
+        const oatsForSubstitution = Math.min(oatStocks, maxSubstitutionOats);
+        oatStocks -= oatsForSubstitution;
+        fAOats += oatsForSubstitution;
+        const substitutionEnergyKcal = oatsForSubstitution * oatsFeedKcalPerBushel;
+
+        const cattleEnergyKcalSupplied = cattleHayEnergyKcal + baseOatEnergyKcal + substitutionEnergyKcal;
+        const cattleEnergyKcalShortfall = Math.max(0, cattleEnergyKcalRequired - cattleEnergyKcalSupplied);
+        if (cattleEnergyKcalShortfall > 0) {
+          animalDeath = true;
+          const perHeadKcalNeed = Math.max(1, ((params.feedNeedsWinter.cowHay * hayFeedKcalPerTon) + (params.feedNeedsWinter.cowOats * oatsFeedKcalPerBushel)));
+          const cattleDying = Math.min(herd.length, Math.ceil(cattleEnergyKcalShortfall / perHeadKcalNeed));
+          herd.sort((a, b) => b.ageMonths - a.ageMonths);
+          herd.splice(0, cattleDying);
+        }
         // Spoilage at the end of the month
         const spoilFactor = (100 - params.spoilageRate) / 100;
         const haySpoilFactor = (100 - params.haySpoilageRate) / 100;
@@ -976,6 +996,8 @@ export function planVillageResources(params: SimParams, mode: PlannerMode = "min
   const barleyKcalPerAcre = deratedYield(params.yields.barley) * params.cropStats.barley.kcalPerBu;
   const oatsFeedPerAcre = deratedYield(params.yields.oats);
   const hayFeedPerAcre = Math.max(0.000001, params.yields.hay * (1 - params.haySpoilageRate / 100));
+  const oatsFeedKcalPerAcre = oatsFeedPerAcre * getOatsFeedKcalPerBushel(params);
+  const hayFeedKcalPerAcre = hayFeedPerAcre * getHayFeedKcalPerTon(params);
   const fuelPerForestAcre = Math.max(0.000001, params.fuelYieldPerAcre * (params.growingMonths / 12));
   const kcalNeed = getAnnualKcalRequirement(params) * riskFactor;
   // Summer fuel is gathered informally (gleaning, hedge scraps, dung) at no woodland cost.
@@ -993,6 +1015,7 @@ export function planVillageResources(params: SimParams, mode: PlannerMode = "min
   const lateWinterMonths = Math.max(0, params.winterMonths - 3);
   const oatsFeedNeed = ((oxen + cows) * earlyWinterMonths + (oxen + cows) * 2 * lateWinterMonths) * riskFactor;
   const hayFeedNeed = ((oxen * params.feedNeedsWinter.oxenHay) + (cows * params.feedNeedsWinter.cowHay) + (sheep * params.feedNeedsWinter.sheepHay)) * params.winterMonths * riskFactor;
+  const animalEnergyKcalRequired = (oatsFeedNeed * getOatsFeedKcalPerBushel(params)) + (hayFeedNeed * getHayFeedKcalPerTon(params));
   const barleyShareTarget = 0.10;
   const w = wheatKcalPerAcre;
   const b = barleyKcalPerAcre;
@@ -1019,6 +1042,7 @@ export function planVillageResources(params: SimParams, mode: PlannerMode = "min
     barleyUpper: 0.20 - barleyShare,
     oatsFeed: oatAcres * oatsFeedPerAcre - oatsFeedNeed,
     hayFeed: hayAcres * hayFeedPerAcre - hayFeedNeed,
+    animalEnergyKcal: (oatAcres * oatsFeedKcalPerAcre + hayAcres * hayFeedKcalPerAcre) - animalEnergyKcalRequired,
     fuel: forestAcres * fuelPerForestAcre - fuelNeed,
     tractionOxen: oxen - params.households * params.animalsPerHH.oxen,
     cowsToOxen: cows - oxen / 2,
@@ -1031,6 +1055,7 @@ export function planVillageResources(params: SimParams, mode: PlannerMode = "min
     { key: "calorie", label: "Calories", unit: "kcal", required: kcalNeed, supplied: cropKcal + animalKcal, slack: slacks.calorie },
     { key: "oatsFeed", label: "Oats feed", unit: "bu", required: oatsFeedNeed, supplied: oatAcres * oatsFeedPerAcre, slack: slacks.oatsFeed },
     { key: "hayFeed", label: "Hay feed", unit: "tons", required: hayFeedNeed, supplied: hayAcres * hayFeedPerAcre, slack: slacks.hayFeed },
+    { key: "animalEnergyKcal", label: "Animal feed energy", unit: "kcal", required: animalEnergyKcalRequired, supplied: oatAcres * oatsFeedKcalPerAcre + hayAcres * hayFeedKcalPerAcre, slack: slacks.animalEnergyKcal },
     { key: "fuel", label: "Fuel", unit: "loads", required: fuelNeed, supplied: forestAcres * fuelPerForestAcre, slack: slacks.fuel },
     { key: "sheepClothing", label: "Wool", unit: "lb", required: params.households * (params.peoplePerHH.male + params.peoplePerHH.female + params.peoplePerHH.child) * params.clothingNeedWoolLbs * riskFactor, supplied: sheep * params.woolPerSheep, slack: slacks.sheepClothing },
     { key: "totalLand", label: "Total land", unit: "ac", required: totalLandAcres, supplied: mode === "fixed-total-land" ? fixedTotal : totalLandAcres, slack: slacks.totalLand },
