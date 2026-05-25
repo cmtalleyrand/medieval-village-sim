@@ -4,6 +4,7 @@ export const DEFAULTS: SimParams = {
   households: 20,
   growingMonths: 9,   // Standard English growing season: March–November
   winterMonths: 3,    // Standard English winter: December–February
+  sunEraMonths: 12,   // One sun-era = one calendar year (12-month cycle)
   totalAcres: 1200,
   fallowPct: 33.3, // 1/3 of total
   landSplit: { // sums to 100% of the active land

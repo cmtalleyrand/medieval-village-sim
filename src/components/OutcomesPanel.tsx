@@ -176,15 +176,13 @@ export function OutcomesPanel({ results, params, isSimulating }: Props) {
           icon={<ShieldCheck className="w-5 h-5" />}
         />
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 text-[0.75rem]">
-          <LedgerRow label="Wheat" value={`${Math.round(results.conversionAudit.physicalOutputs.grainBushels.wheat).toLocaleString()} bu`} />
-          <LedgerRow label="Barley" value={`${Math.round(results.conversionAudit.physicalOutputs.grainBushels.barley).toLocaleString()} bu`} />
-          <LedgerRow label="Oats" value={`${Math.round(results.conversionAudit.physicalOutputs.grainBushels.oats).toLocaleString()} bu`} />
-          <LedgerRow label="Hay" value={`${Math.round(results.conversionAudit.physicalOutputs.hayTons).toLocaleString()} tons`} />
-          <LedgerRow label="Cow milk" value={`${Math.round(results.conversionAudit.physicalOutputs.milkGallons.cow).toLocaleString()} gal/yr`} />
-          <LedgerRow label="Ewe milk" value={`${Math.round(results.conversionAudit.physicalOutputs.milkGallons.ewe).toLocaleString()} gal/yr`} />
-          <LedgerRow label="Wool" value={`${Math.round(results.conversionAudit.physicalOutputs.woolLbs).toLocaleString()} lb`} />
-          <LedgerRow label="Cloth" value={`${Math.round(results.conversionAudit.physicalOutputs.clothYards).toLocaleString()} yd`} />
-          <LedgerRow label="Sheep meat" value={`${Math.round(results.conversionAudit.physicalOutputs.meatLbs.sheep).toLocaleString()} lb`} />
+          <LedgerRow label="Wheat" value={`${Math.round(results.physicalOutputsPerSunEra.wheatBu).toLocaleString()} bu`} />
+          <LedgerRow label="Barley" value={`${Math.round(results.physicalOutputsPerSunEra.barleyBu).toLocaleString()} bu`} />
+          <LedgerRow label="Oats" value={`${Math.round(results.physicalOutputsPerSunEra.oatsBu).toLocaleString()} bu`} />
+          <LedgerRow label="Hay" value={`${Math.round(results.physicalOutputsPerSunEra.hayTons).toLocaleString()} tons`} />
+          <LedgerRow label="Milk" value={`${Math.round(results.physicalOutputsPerSunEra.milkLitres).toLocaleString()} L/yr`} />
+          <LedgerRow label="Wool" value={`${Math.round(results.physicalOutputsPerSunEra.woolLbs).toLocaleString()} lb`} />
+          <LedgerRow label="Meat" value={`${Math.round(results.physicalOutputsPerSunEra.meatKcal / 3000).toLocaleString()} kg`} />
         </div>
       </Card>
     </div>
