@@ -24,46 +24,90 @@ Four permanent categories; areas are simulation parameters set before any run.
 ### 2.1 Terminology
 
 - **Sun-era**: One full growing season + one full winter, starting on the first day of spring.
-- **Course**: What a field does during one sun-era. A course has a crop type (or "fallow") and a within-sun-era schedule.
+- **Course**: What a field does during one sun-era. A course has a crop type (or "fallow") and a within-sun-era schedule of monthly activities.
 - **Rotation**: An ordered sequence of courses that a field cycles through, then repeats. Length 1–4 sun-eras.
 - **Two parallel rotations** are allowed, each running on a different fraction of the arable land.
 
-### 2.2 Within-sun-era schedule (the "extra months" question)
+### 2.2 Monthly field activities
 
-Each course covers an entire sun-era but a crop only occupies the field for part of it. The schedule for each course type:
+Every acre of arable land has exactly one activity per month. Activities are mutually exclusive (non-concurrent on a given acre). Each takes one calendar month.
 
-**Wheat course** (autumn-sown):
-- GM 1–6 (approximately): Field carries last season's wheat, still growing and awaiting harvest. Harvest fires around GM 5–6 when growth units reach maturity threshold (5.95 GU).
-- GM 7–end: Post-harvest. Stubble grazed (≥ 2 growing-equivalent months = 2 GU needed before next sowing). Field plowed once or twice. Acts as temporary pasture.
-- Next autumn (GM 8–9): Plowed again, wheat sown. This is the sowing for the NEXT sun-era's wheat course.
-- Winter: Wheat overwinters growing at 0.15 GU/month (normal winter) or 0.0 (deep winter).
+| Activity | Requires traction | Prerequisites | Effect on fertility |
+|---|---|---|---|
+| **Plowing** | Yes (oxen) | Must have something to plow in: recent manure deposit (from grazing activity in prior month or two) or accumulated plant matter (fallow). Re-plowing a bare field the following month has no effect. | Converts accumulated plant matter / manure into fertility gain (realized when crop grows) |
+| **Sowing/harrowing** | Yes (oxen) | Must immediately follow plowing | None directly; starts crop growth |
+| **Harvesting** | No | Crop must have reached maturity threshold | None; resets field to stubble |
+| **Stubble grazing** | No | Only in the 1–2 months immediately after harvest (stubble is exhausted after that) | Deposits manure |
+| **Grazing (temporary pasture)** | No | Field not plowed/sown | Deposits manure; provides livestock feed |
+| **Fallow (none)** | No | Any uncropped field | Accumulates plant matter slowly; no manure deposit |
 
-*Gap invariant:* At least 2 GU must accumulate on the field (in uncropped idle state) between any two crop sowings. This represents stubble grazing, manuring, and preparatory plowing. 2 GU at spring rate = ~2.9 months; at summer rate = 2 months.
+**Key constraints:**
+- Plowing is only productive if preceded (recently) by grazing or a fallow accumulation period. A field plowed bare without prior grazing/fallow wastes the effort.
+- Stubble grazing transitions naturally to ordinary temporary-pasture grazing once the stubble is exhausted (~1 month). Functionally similar in the model; the distinction matters only for tracking.
+- Traction demand: plowing is the bottleneck. One 8-ox team can plow roughly 1 acre/day ≈ 25–30 acres/month. Sowing/harrowing is lighter work on already-loosened soil.
+
+### 2.3 Within-sun-era field schedule
+
+**Wheat course** (9/3 standard season, using activities):
+
+| Month | Activity | Notes |
+|---|---|---|
+| GM1–GM5 | *growing* (wheat) | Wheat sown last autumn; reaches maturity ~GM5 (5.95 GU) |
+| GM5–GM6 | **Harvesting** | Harvest window; wait up to 1.0 GU past maturity |
+| GM6 | **Stubble grazing** | 1 month — stubble exhausted after this |
+| GM7 | **Grazing** (temporary pasture) | Further grazing deposits more manure |
+| GM8 | **Plowing** | Something to plow in from 2 months of grazing |
+| GM8–GM9 | **Sowing/harrowing** | Wheat sown for next sun-era's wheat course |
+| W1–W3 | *growing* (wheat overwinters) | 0.15 GU/month (normal winter) |
+
+*The 2 GU inter-crop gap (between harvest and re-sow) is satisfied by: stubble grazing (GM6) + temporary pasture (GM7) + plowing (GM8) = 3 months, accumulating 0.7 + 0.7 + 0 = 1.4 GU of uncropped time. Together with winter (3 × 0.15 = 0.45 GU) the total uncropped period before next spring growth = 1.85 GU.*
+
+*Note: the current code enforces the 2 GU gap using growth-unit accumulation, which implicitly requires this sequence to have occurred. The activity model will make it explicit.*
 
 **Spring-crop course** (barley / oats mix):
-- GM 1–2 (early spring): Final preparatory plowing, sowing.
-- GM 2–7 (approximately): Crop growing. Barley matures at 5.10 GU (harvested ~GM 7–8). Oats mature at 4.40 GU (harvested ~GM 6).
-- GM 7/8–end: Post-harvest. Stubble grazed. Field plowed for following rotation step.
-- Winter: Bare plowed field. Frost action on soil. No crop.
+
+| Month | Activity | Notes |
+|---|---|---|
+| W1–W3 | **Fallow** | Bare field from previous autumn's post-harvest work |
+| GM1 | **Plowing** | Plow in accumulated plant matter from fallow winter |
+| GM2 | **Sowing/harrowing** | Spring crop sown |
+| GM2–GM6/7 | *growing* (barley or oats) | Oats: harvest ~GM6 (4.40 GU); Barley: harvest ~GM7 (5.10 GU) |
+| GM6/7 | **Harvesting** | |
+| GM7 | **Stubble grazing** | 1 month |
+| GM8–GM9 | **Grazing** (temporary pasture) | Further manure deposit; field rests for next rotation step |
 
 **Fallow course**:
-- Entire growing season: Field is plowed 2–3 times (winter plowing, spring plowing, summer plowing). Grazed by sheep and cattle — this is where animal manure restores fertility. No crop sown.
-- Winter: Bare.
-- Fertility recovery applies every uncropped month.
 
-### 2.3 Rotation selection
-
-For the planner and for the initial simulation setup, the rotation is chosen based on growing-season length:
-
-| Growing months | Rotation | Fallow fraction |
+| Month | Activity | Notes |
 |---|---|---|
-| ≤ 12 | 3-field: wheat → spring-crop → fallow | 1/3 |
-| 13–24 | 4-field: wheat → barley → oats → fallow | 1/4 |
-| > 24 | 5-course: wheat → barley → oats → second-grain → fallow | 1/5 |
+| W1–W3 | **Fallow** | Plant matter accumulates slowly |
+| GM1 | **Plowing** | Plow in winter accumulation |
+| GM2–GM4 | **Grazing** | Sheep and cattle deposit manure. Maximum fertility return. |
+| GM5 | **Plowing** | Plow in spring grazing manure |
+| GM6–GM8 | **Grazing** | Further manure |
+| GM9 | **Plowing** | Final pre-winter preparation; plow in summer manure |
 
-For very long seasons (> 24 months), pure fallow for an entire sun-era is unnecessary and wasteful; the extra growing capacity first extends fallow quality (more plowings, more grazing), then supports an additional short-season grain crop or temporary pasture. *The minimum fallow is determined by depletion physics (Section 3), not by calendar convention.*
+Three plowings per fallow year is the historical standard (winter, spring, summer). Each plowing is productive only because the preceding period deposited something to plow in.
 
-### 2.4 Barley/oats split on spring-crop course
+### 2.4 Extra months — how additional growing capacity is used
+
+When growing season length exceeds what the standard 3-field rotation needs (baseline: 9 months), the surplus capacity is absorbed in the following priority order. Each step requires the previous one to be in place first.
+
+| Extra months accumulated | What the additional month goes to |
+|---|---|
+| +1 | **Extended growing**: leave crops in ground longer before harvest. Historically realised through later-maturing crop varieties. Direct yield gain. |
+| +2 | **Additional post-harvest grazing**: one more month of temporary pasture after harvest, depositing more manure. Makes the next plowing more productive. |
+| +3 | **Another growing extension**: another month of longer-season variety or waiting longer. |
+| +4 | **Another post-harvest grazing month**: further manure accumulation. |
+| +5 | **Additional plowing**: now worthwhile because two extra grazing months have deposited more than was there before. |
+| +6 | **Additional fallow/grazing**: more resting and manuring before the rotation cycles. |
+| +7 | **Entirely new crop cycle**: −1 month of grazing, −3 months of growing from the original crop, +5 months of a complete additional short-season crop (e.g., oats: 4.40 GU with more summer months). The yield gain from the extra crop exceeds the value of longer growth on the first crop. |
+
+*This sequence is a working hypothesis derived from first principles (longer growth → more yield, but diminishing return; grazing → manure → plowing cycle has a fixed minimum duration; a full additional crop only pays off when there is enough remaining season for it to approach maturity). It should be tested against simulation outputs.*
+
+The implication for rotation selection: instead of a fixed 3/4/5-course rule, the number of courses and fallow depth should emerge from the available season length and the economic trade-offs above. The current fixed-course selection is an approximation.
+
+### 2.5 Barley/oats split on spring-crop course
 
 Barley and oats are sown as a mix on the spring-crop course. The split is NOT determined by the rotation — it is a **demand-side constraint** driven by human ale consumption (see Section 7).
 
@@ -85,20 +129,34 @@ Constants: d = 0.03 (all crops), r = 0.11. `WINTER_FALLOW_RECOVERY`: normal wint
 
 ### 3.2 What is wrong
 
-**Uniform depletion rate across crops is incorrect.** Wheat depletes soil more than other cereals because:
-- Longer growing period (5.95 GU vs 4.40–5.10 GU) — already captured by current formula
-- Deeper root system and heavier nutrient extraction per GU — NOT captured
-- Grain:straw ratio is exported; straw removed for thatching/bedding reduces organic matter return
+**What d means:** d is fertility depletion *per growth unit accumulated by the crop*. One GU represents one month of full-summer-equivalent growth. d therefore captures how much soil nutrient the crop extracts per unit of growing effort — independent of season length. A crop with more GU (longer season) depletes more in total; d controls whether it also depletes more *per unit of growth*.
+
+**Uniform d across crops is incorrect.** Wheat depletes soil more than other cereals because:
+- Deeper root system extracts nutrients from lower soil horizons — not captured by uniform d
+- Heavier grain yield per acre at maturity exports more nutrients
+- Straw removed for thatching/bedding, reducing organic matter return to field
 
 **Proposed per-crop depletion rates:**
 
 | Crop | d (per GU) | Rationale |
 |---|---|---|
-| Wheat | 0.040 | Deepest extraction, longest season |
+| Wheat | 0.040 | Deepest extraction, heaviest export |
 | Barley | 0.028 | Moderate — shallower roots, shorter season |
 | Oats | 0.022 | Least depleting of the main cereals |
-| Legumes/pulses | −0.015 | Nitrogen fixation actively improves fertility |
-| Arable hay (aftermath) | 0.010 | Hay left on field partly returns nutrients |
+| Legumes/pulses | *variable* | See note below |
+| Arable hay (aftermath) | 0.010 | Roots remain; partly returns nutrients |
+
+**Legumes — variable depletion depending on end use:**
+
+Legumes fix atmospheric nitrogen via root nodules. How much benefit returns to the soil depends on what is done with the crop:
+
+| Legume use | Soil effect |
+|---|---|
+| Plowed in green (entire crop) | Strongly negative d (large nitrogen return). Best for soil. |
+| Grazed by animals in field | Moderate negative d. Animal manure returns nitrogen, but less than plowing-in. |
+| Harvested for human food | Near-zero or slightly positive d. Nitrogen exported in grain; only root nodules remain. |
+
+In practice, a mix of these occurred. A simple model: d_legumes = −0.010 if grazed/plowed-in fraction ≥ 50%, else d_legumes = +0.005. The legume-use fraction is a parameter to document and expose.
 
 **Calibration to 3-field equilibrium (9/3 season):**
 
@@ -182,31 +240,62 @@ Straw is stored for winter use as roughage. This is the primary reason the rough
 ACRES_PER_OX = 15   [medieval English: one 8-ox team works 120 acres → 15 acres/ox]
 oxen_needed = ceil(arableAcres / ACRES_PER_OX)
 ```
+*ACRES_PER_OX is a plowing capacity constraint — plowing is the bottleneck, not sowing. One 8-ox team plows ~1 acre/day ≈ 25 acres/month.*
 
-**Breeding cows for herd stability:**
+**Breeding cows for herd stability — depends on reproductive cycles per sun-era:**
 
-Each working ox has a working lifespan of L_ox ≈ 6 years (age 4–10). To replace N working oxen:
-- Required viable male calves per year = N / L_ox
-- Each cow produces: calving_rate × calf_survival × male_fraction = 0.80 × 0.80 × 0.50 = 0.32 male calves per year surviving to age 1
-- Fraction surviving to working age (4 years): cumulative survival ≈ 0.80 (above age-1 survival)
-- Viable oxen per cow per year ≈ 0.32 × 0.80 = 0.256
+The minimum breeding herd is not a fixed ratio of oxen. It depends on how many viable calves each cow can produce per sun-era, which depends on season length (more growing months = more conception windows) and winter length (conception is blocked in winter).
+
+Key parameters:
+- Cow gestation: COW_GESTATION = 9 months
+- Postpartum infertility: COW_POSTPARTUM ≈ 3 months before cow can conceive again
+- Full biological cycle length: 9 + 3 = 12 months
+- Calving rate per cycle: 0.80 (some fail)
+- Calf survival to age 1: 0.80
+- Male calf fraction: 0.50
+- Calf survival from age 1 to working age (≈ 4 years): ~0.61 cumulative
+
+**Calves per cow per sun-era:**
 
 ```
-min_cows_for_ox_replacement = ceil(oxen_needed / (L_ox × 0.256))
-                             ≈ ceil(oxen_needed / 1.54) ≈ ceil(oxen / 1.5)
+feasibleCycles   = floor(sunEraMonths / 12)   [one full cycle per 12 months]
+calvesPerCowPerSunEra = feasibleCycles × 0.80 × 0.80   [calving rate × calf survival]
+```
+12-month sun-era: 0.64 calves/cow; 24-month: 1.28; 36-month: 1.92.
+
+**Oxen replacements needed per sun-era:**
+
+```
+OX_WORKING_LIFESPAN = 72 months (6 years, ages 4–10)
+oxen_replacements   = oxen_needed × sunEraMonths / OX_WORKING_LIFESPAN
 ```
 
-The cow herd also requires self-replenishment (cow working lifespan L_cow ≈ 8 productive years). Similar calculation adds ~20% to the cow count above.
+**Minimum breeding cows (for ox replacement):**
 
-**Practical ratio: 1 breeding cow per 1.5–2 working oxen.** (Current code uses `oxen / 2`, which is the conservative end of this range — appropriate given stochastic mortality.)
+```
+viable_male_calves_per_cow = calvesPerCowPerSunEra × 0.50 × 0.61
+cows_for_ox_replacement    = ceil(oxen_replacements / viable_male_calves_per_cow)
+```
 
-**Young stock pipeline (not currently tracked, needed for accurate winter feed projection):**
-- Male calves growing to working age: ~4 years × replacement rate
-- Female calves growing to breeding age: ~2 years × replacement rate
+The cow herd replaces itself too (COW_PRODUCTIVE_LIFESPAN ≈ 96 months = 8 years):
+```
+cow_replacements           = total_cows × sunEraMonths / 96
+viable_female_per_cow      = calvesPerCowPerSunEra × 0.50 × 0.73
+cows_for_self_replacement  = ceil(cow_replacements / viable_female_per_cow)
+```
 
-**TODO:** Track young stock explicitly as a third cattle category with their own feed needs and pre-winter cull eligibility.
+Total minimum breeding cows = max(cows_for_ox_replacement + cows_for_self_replacement). Cows serve both purposes simultaneously (the same cow produces both male and female calves).
 
-**Bulls:** 1 per 12 cows. (Parameter `bullsPerCow`.)
+**Stochastic mortality buffer:** Add +20% above the deterministic minimum to buffer against years of poor calving or high calf mortality.
+
+**Young stock pipeline (not currently tracked, needed for winter feed):**
+- Young males growing to working age (0–4 years): at equilibrium ≈ `oxen_needed × 4 / OX_WORKING_LIFESPAN_YEARS`
+- Young females growing to breeding age (0–2 years): ≈ `total_cows × 2 / COW_PRODUCTIVE_LIFESPAN_YEARS`
+Feed needs: ~50% of adult for calves < 12 months; ~75% for year 1–3.
+
+**TODO:** Track young stock explicitly. Pre-winter cull and winter feed projection must include them.
+
+**Bulls:** 1 per 12 cows (parameter `bullsPerCow`).
 
 ### 5.2 Sheep flock
 
