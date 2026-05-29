@@ -105,20 +105,17 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
   const sheepEwes = totalSheep * 0.5;
   const sheepLambs = totalSheep * 0.3;
   const plannerReport = useMemo(() => planVillageResources(params, 'fixed-total-land'), [params]);
-  const barleySharePct = Math.max(0, (plannerReport.slacks.barleyLower + 0.10) * 100);
-  const feedMargin = Math.min(plannerReport.slacks.oatsFeed, plannerReport.slacks.hayFeed);
+  const barleySharePct = plannerReport.solution.activeFarmlandAcres > 0
+    ? (plannerReport.solution.barleyAcres / plannerReport.solution.activeFarmlandAcres) * 100
+    : 0;
+  const feedMargin = Math.min(plannerReport.slacks.oatFeed ?? 0, plannerReport.slacks.hayBalance ?? 0);
   const limitingLabels: Record<string, string> = {
-    calorie: 'Calories',
-    barleyLower: 'Barley lower',
-    barleyUpper: 'Barley upper',
-    oatsFeed: 'Oats feed',
-    hayFeed: 'Hay feed',
-    fuel: 'Fuel',
-    tractionOxen: 'Traction oxen',
-    cowsToOxen: 'Cow ratio',
-    bullsToCows: 'Bull ratio',
+    calorie:       'Calories',
+    hayBalance:    'Hay balance',
+    oatFeed:       'Oat feed',
+    fuel:          'Fuel',
     sheepClothing: 'Wool',
-    totalLand: 'Total land',
+    totalLand:     'Total land',
   };
   const bindingConstraints = Object.entries(plannerReport.slacks as Record<string, number>)
     .map(([key, slack]) => ({ key, slack, magnitude: Math.abs(slack) }))
@@ -334,11 +331,11 @@ export function CouncilPanel({ params, setParams, commitParams, setAndCommitPara
               <PolicyMetric label="Fuel margin" value={plannerReport.slacks.fuel} unit="loads" />
             </div>
             <div className="space-y-1.5">
-              {plannerReport.constraintAudit.map(({ key, label, unit, required, supplied, slack }) => {
+              {Object.entries(plannerReport.slacks as Record<string, number>).map(([key, slack]) => {
                 return (
                   <div key={key} className="flex items-center justify-between border-b border-[rgba(120,80,30,0.14)] pb-1 text-[0.66rem] tabular-nums">
-                    <span className="text-[var(--color-ink-400)]">{label}</span>
-                    <span className="text-[var(--color-ink-500)]">need {required.toFixed(1)} {unit} · have {supplied.toFixed(1)} {unit} · margin {slack >= 0 ? '+' : ''}{slack.toFixed(1)} {unit}</span>
+                    <span className="text-[var(--color-ink-400)]">{limitingLabels[key] ?? key}</span>
+                    <span className={`text-[var(--color-ink-500)] ${slack < -1e-6 ? 'text-[var(--color-crimson-500)]' : ''}`}>margin {slack >= 0 ? '+' : ''}{slack.toFixed(2)}</span>
                   </div>
                 );
               })}

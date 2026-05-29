@@ -16,7 +16,7 @@ type ChartFocus = 'grain' | 'hay' | 'fuel' | 'livestock' | 'cloth' | 'all';
 export function Chronicle({ history, params }: ChronicleProps) {
   const [currentMonth, setCurrentMonth] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(450);
+  const [speed, setSpeed] = useState(900);
   const [focus, setFocus] = useState<ChartFocus>('all');
 
   const monthsPerYear = params.growingMonths + params.winterMonths;
@@ -44,7 +44,10 @@ export function Chronicle({ history, params }: ChronicleProps) {
   const isWinter = monthInYear > params.growingMonths;
   const isHarvest = monthInYear === params.growingMonths;
   const isPlanting = monthInYear === 1;
-  const isShearing = monthInYear === 3;
+  const isShearing = (cur.shearings ?? 0) > 0;
+  const isHayCut   = (cur.hayCuts   ?? 0) > 0;
+  const isSpring = !isWinter && monthInYear <= 3;
+  const isAutumn = !isWinter && monthInYear >= Math.max(4, params.growingMonths - 2) && !isHarvest;
 
   // Granary capacities (max ever reached) for scale
   const maxValues = useMemo(() => {
@@ -64,12 +67,15 @@ export function Chronicle({ history, params }: ChronicleProps) {
     return { wheat: mw, barley: mb, oats: mo, hay: mh, fuel: mf, meat: mm, cattle: mc, sheep: ms, wool: mwool, cloth: mcloth };
   }, [history]);
 
-  // Events derived from current row (e.g. shortage, shearing)
+  // Events derived from current row
   const events: { icon: React.ReactNode; text: string; tone: 'good' | 'bad' | 'neutral' }[] = [];
-  if (isPlanting) events.push({ icon: <Sparkles className="w-3 h-3" />, text: 'Spring planting · seed deducted', tone: 'neutral' });
-  if (isShearing && cur.wool > 0) events.push({ icon: <Scissors className="w-3 h-3" />, text: `Sheared ${cur.wool} lbs wool`, tone: 'good' });
+  if (isPlanting) events.push({ icon: <Sparkles className="w-3 h-3" />, text: 'Ploughing and sowing · seed deducted', tone: 'neutral' });
+  if (cur.lambCount > 0) events.push({ icon: <span className="text-[0.7rem]">🐑</span>, text: `${cur.lambCount} lambs born`, tone: 'good' });
+  if (isShearing && cur.wool > 0) events.push({ icon: <Scissors className="w-3 h-3" />, text: `Shearing · ${cur.wool} lbs wool`, tone: 'good' });
+  if (isHayCut && cur.hHay > 0) events.push({ icon: <span className="text-[0.7rem]">🌿</span>, text: `Meadows cut · ${cur.hHay} tons hay stored`, tone: 'good' });
   if (isHarvest) events.push({ icon: <Wheat className="w-3 h-3" />, text: 'Harvest · grain into the granary', tone: 'good' });
-  if (cur.deficit > 0) events.push({ icon: <AlertTriangle className="w-3 h-3" />, text: `Famine: ${Math.round(cur.deficit / 1000)} k‑cal short`, tone: 'bad' });
+  if (cur.preWinterSheepCull > 0) events.push({ icon: <span className="text-[0.7rem]">🔪</span>, text: `${cur.preWinterSheepCull} sheep culled before winter`, tone: 'neutral' });
+  if (cur.deficit > 0) events.push({ icon: <AlertTriangle className="w-3 h-3" />, text: `Hunger · ${Math.round(cur.deficit / 1000)} k‑cal short`, tone: 'bad' });
   if (cur.spoilCol > 30) events.push({ icon: <span className="text-[0.6rem]">🪲</span>, text: `${cur.spoilCol} bu lost to spoilage`, tone: 'bad' });
 
   // Chart data — bound the full series
@@ -83,13 +89,16 @@ export function Chronicle({ history, params }: ChronicleProps) {
       {/* Top scene + playhead */}
       <Card>
         <CardHeader
-          title={`Chronicle of Year ${cur.year}`}
+          title={`Cycle ${cur.cycle} · Year ${cur.year} · Month ${monthInYear}`}
           subtitle={
-            isPlanting ? 'Lent · seed cast into the earth' :
-            isShearing ? 'Whitsuntide · sheep shearing' :
-            isHarvest ? 'Lammas · the harvest is gathered' :
-            isWinter ? `Deep winter · month ${monthInYear - params.growingMonths} of the cold` :
-            `Growing season · month ${monthInYear} of plenty`
+            monthInYear === 1 ? 'Candlemas · the plough turns, seed goes into the earth' :
+            isShearing ? 'Whitsuntide · shearing and the first warmth of summer' :
+            isHayCut ? 'Midsummer · the meadows are cut and hay stored' :
+            isHarvest ? 'Lammas · grain and livestock culled before the cold' :
+            isAutumn ? `Michaelmas · autumn month ${monthInYear - (params.growingMonths - 3)} · fields lie stubble` :
+            isSpring ? `Eastertide · spring month ${monthInYear} · the land quickens` :
+            isWinter ? `Deep winter · month ${monthInYear - params.growingMonths} of ${params.winterMonths}` :
+            `High summer · month ${monthInYear} of the growing season`
           }
           icon={isWinter ? <Snowflake className="w-5 h-5 text-[var(--color-frost-500)]" /> : <Sun className="w-5 h-5 text-[var(--color-gold-500)]" />}
         />
@@ -162,11 +171,12 @@ export function Chronicle({ history, params }: ChronicleProps) {
               <SkipForward className="w-3.5 h-3.5" />
             </button>
             <button
-              onClick={() => setSpeed(s => (s === 450 ? 150 : 450))}
-              className={`btn-wood ${speed === 150 ? 'primary' : ''}`}
+              onClick={() => setSpeed(s => s === 900 ? 400 : s === 400 ? 150 : 900)}
+              className={`btn-wood ${speed < 400 ? 'primary' : ''}`}
               title="Toggle speed"
             >
-              <FastForward className="w-3.5 h-3.5" /> <span>{speed === 150 ? 'Fast' : 'Normal'}</span>
+              <FastForward className="w-3.5 h-3.5" />
+              <span>{speed === 150 ? 'Fast' : speed === 400 ? 'Normal' : 'Slow'}</span>
             </button>
             <span className="ml-auto font-[var(--font-mono)] text-[0.75rem] text-[var(--color-ink-300)] tabular-nums">
               {cur.month} / {history.length}
