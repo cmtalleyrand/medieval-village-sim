@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Skull, Flame, Beef, Scissors, Wheat, AlertTriangle, ShieldCheck, ShieldAlert, Scroll, Snowflake, Shirt } from 'lucide-react';
 import { Card, CardHeader, RiskMeter, StatLabel, StatValue, Tooltip, Fleuron } from './ui';
 import { SimParams, SimResult } from '../lib/simulation';
+import { buildPhysicalLedgerRows, type UnitDisplayMode } from '../lib/unitDisplay';
 
 interface Props {
   results: SimResult;
@@ -16,6 +17,8 @@ export function OutcomesPanel({ results, params, isSimulating }: Props) {
   const dailyKcal = params.households * (params.kcalPerDay.male * params.peoplePerHH.male + params.kcalPerDay.female * params.peoplePerHH.female + params.kcalPerDay.child * params.peoplePerHH.child);
   const yearlyKcal = dailyKcal * DAYS_PER_YEAR;
   const monthlyKcal = yearlyKcal / MONTHS_PER_YEAR;
+  const [unitMode, setUnitMode] = useState<UnitDisplayMode>('extentImperial');
+  const physicalLedgerRows = useMemo(() => buildPhysicalLedgerRows(results.conversionAudit, unitMode), [results.conversionAudit, unitMode]);
 
   const diet = useMemo(() => {
     const t = (results.diet.wheat + results.diet.barley + results.diet.oats + results.diet.dairy + results.diet.meat + results.diet.deficit) || 1;
@@ -172,25 +175,47 @@ export function OutcomesPanel({ results, params, isSimulating }: Props) {
       <Card>
         <CardHeader
           title="Physical Output Ledger"
-          subtitle="Primary quantities in physical units"
+          subtitle="Choose whether relevant outputs are displayed by weight or by volume/length, in metric or imperial units"
           icon={<ShieldCheck className="w-5 h-5" />}
+          right={<UnitModeToggle value={unitMode} onChange={setUnitMode} />}
         />
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 text-[0.75rem]">
-          <LedgerRow label="Wheat" value={`${Math.round(results.conversionAudit.physicalOutputs.grainBushels.wheat).toLocaleString()} bu`} />
-          <LedgerRow label="Barley" value={`${Math.round(results.conversionAudit.physicalOutputs.grainBushels.barley).toLocaleString()} bu`} />
-          <LedgerRow
-            label="Oats"
-            value={`${Math.round(results.conversionAudit.physicalOutputs.grainBushels.oats).toLocaleString()} bu`}
-            sub={`Secondary units: ${Math.round(results.conversionAudit.foods.oatsReported.oatsKg).toLocaleString()} kg (${results.conversionAudit.foods.oatsReported.oatsTonnes.toFixed(2)} t); human-edible ${Math.round(results.conversionAudit.foods.oatsReported.oatsHumanKcal).toLocaleString()} kcal and animal-feed metabolizable ${Math.round(results.conversionAudit.foods.oatsReported.oatsAnimalFeedKcal).toLocaleString()} kcal are parallel characterizations of oats energy potential under current model assumptions (not a changed allocation engine).`}
-          />
-          <LedgerRow label="Hay" value={`${Math.round(results.conversionAudit.physicalOutputs.hayTons).toLocaleString()} tons`} />
-          <LedgerRow label="Cow milk" value={`${Math.round(results.conversionAudit.physicalOutputs.milkGallons.cow).toLocaleString()} gal/yr`} />
-          <LedgerRow label="Ewe milk" value={`${Math.round(results.conversionAudit.physicalOutputs.milkGallons.ewe).toLocaleString()} gal/yr`} />
-          <LedgerRow label="Wool" value={`${Math.round(results.conversionAudit.physicalOutputs.woolLbs).toLocaleString()} lb`} />
-          <LedgerRow label="Cloth" value={`${Math.round(results.conversionAudit.physicalOutputs.clothYards).toLocaleString()} yd`} />
-          <LedgerRow label="Sheep meat" value={`${Math.round(results.conversionAudit.physicalOutputs.meatLbs.sheep).toLocaleString()} lb`} />
+          {physicalLedgerRows.map((row) => (
+            <div key={row.key}>
+              <LedgerRow label={row.label} value={row.value} sub={row.sub} />
+            </div>
+          ))}
         </div>
       </Card>
+    </div>
+  );
+}
+
+const UNIT_MODE_OPTIONS: Array<{ value: UnitDisplayMode; label: string }> = [
+  { value: 'extentImperial', label: 'Vol/len imp.' },
+  { value: 'extentMetric', label: 'Vol/len metric' },
+  { value: 'weightImperial', label: 'Weight imp.' },
+  { value: 'weightMetric', label: 'Weight metric' },
+];
+
+function UnitModeToggle({ value, onChange }: { value: UnitDisplayMode; onChange: (value: UnitDisplayMode) => void }) {
+  return (
+    <div className="flex flex-wrap justify-end gap-1 max-w-[14rem]">
+      {UNIT_MODE_OPTIONS.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          onClick={() => onChange(option.value)}
+          className={`px-2 py-1 rounded-sm border text-[0.58rem] uppercase tracking-wide transition ${
+            value === option.value
+              ? 'bg-[var(--color-ink-500)] text-[var(--color-parchment)] border-[var(--color-ink-500)]'
+              : 'bg-[rgba(255,250,230,0.55)] text-[var(--color-ink-400)] border-[rgba(120,80,30,0.25)] hover:border-[var(--color-ink-300)]'
+          }`}
+          aria-pressed={value === option.value}
+        >
+          {option.label}
+        </button>
+      ))}
     </div>
   );
 }

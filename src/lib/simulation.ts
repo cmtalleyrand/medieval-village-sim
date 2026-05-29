@@ -288,12 +288,12 @@ function buildConversionAudit(params: SimParams): ConversionAudit {
     foods: {
       wheat: { volumeM3: null, weightKg: wheatKg, energy: { ruminantOnlyKcal: 0, animalDirectKcal: 0, humanProcessedKcal: 0, processingWasteAnimalKcal: 0, humanDirectKcal: wheatKg * params.foodEnergyModel.energyKcalPerKg.wheat } },
       barley: { volumeM3: null, weightKg: barleyKg, energy: { ruminantOnlyKcal: 0, animalDirectKcal: 0, humanProcessedKcal: barleyProcessed, processingWasteAnimalKcal: barleyWaste, humanDirectKcal: barleyGross * 0.25 } },
-      oats: { volumeM3: null, weightKg: oatsKg, energy: { ruminantOnlyKcal: 0, animalDirectKcal: oatsKg * params.foodEnergyModel.metabolizableKcalPerKg.oatsForMonogastrics, humanProcessedKcal: 0, processingWasteAnimalKcal: 0, humanDirectKcal: oatsKg * params.foodEnergyModel.energyKcalPerKg.oats } },
+      oats: { volumeM3: null, weightKg: oatsKg, energy: { ruminantOnlyKcal: 0, animalDirectKcal: oatsKg * params.foodEnergyModel.metabolizableKcalPerKg.oatsForRuminants, humanProcessedKcal: 0, processingWasteAnimalKcal: 0, humanDirectKcal: oatsKg * params.foodEnergyModel.energyKcalPerKg.oats } },
       oatsReported: {
         oatsKg,
         oatsTonnes,
         oatsHumanKcal: oatsKg * params.foodEnergyModel.energyKcalPerKg.oats,
-        oatsAnimalFeedKcal: oatsKg * params.foodEnergyModel.metabolizableKcalPerKg.oatsForMonogastrics,
+        oatsAnimalFeedKcal: oatsKg * params.foodEnergyModel.metabolizableKcalPerKg.oatsForRuminants,
       },
       hay: { volumeM3: null, weightKg: hayKg, energy: { ruminantOnlyKcal: hayKg * params.foodEnergyModel.metabolizableKcalPerKg.hayForRuminants, animalDirectKcal: 0, humanProcessedKcal: 0, processingWasteAnimalKcal: 0, humanDirectKcal: 0 } },
       dairy: { volumeM3: null, weightKg: (params.households * params.animalsPerHH.cows * cowGallonsPerYear + eweCount * eweSeasonMonths * eweGallonsPerMonthInSeason) * 3.9, energy: { ruminantOnlyKcal: 0, animalDirectKcal: 0, humanProcessedKcal: 0, processingWasteAnimalKcal: 0, humanDirectKcal: params.households * params.animalsPerHH.cows * params.production.cowDairyKcal * 12  } },
