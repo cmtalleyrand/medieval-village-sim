@@ -109,11 +109,59 @@ percentage and the definition of "overall land" are open (Batch 1, below).
 meadowland and from arable-derived "temporary pasture" (fallow/stubble
 grazing). Its area-determination rule is open (Batch 1, below).
 
-### 1.2 Area Determination & Accounting — PENDING (Batch 1, this session)
+### 1.2 Area Determination & Accounting — [AGREED]
 
-Open questions: what is "total village land," is each category's area an
-independent exogenous parameter or derived from the others, and what are the
-meadow and permanent-pasture percentages. See Batch 1 below.
+**Accounting structure** [AGREED]: All four categories are independent area
+parameters. Total village land is a pure accounting sum:
+
+```
+totalVillageLandAcres = arableAcres + permanentPastureAcres + meadowAcres + woodlandAcres
+```
+
+No category is a "target" to hit; this is bookkeeping only. (Note: `arableAcres`
+corresponds to the current `totalAcres` parameter in `defaults.ts` — a naming
+clarification for a future code change, not a modelling decision, and out of
+scope for this document.)
+
+**Meadow area** [AGREED]: `meadowPct = 7.5%` (midpoint of the previously cited
+5–10% range). To avoid circularity (meadow being a % of a total that includes
+meadow itself), meadow is defined as 7.5% of the *other three* categories
+combined:
+
+```
+meadowAcres = meadowPct × (arableAcres + permanentPastureAcres + woodlandAcres)
+            = 0.075 × (arableAcres + permanentPastureAcres + woodlandAcres)
+```
+
+[DERIVED — technical resolution, not a separate decision]: This differs from
+a strict self-referential "7.5% of grand total" by less than 1 percentage
+point (7.5% vs. ≈8.1% of the grand total), well within the precision implied
+by choosing a range-midpoint. If this distinction ever matters it can be
+revisited, but it is not load-bearing.
+
+**Permanent pasture area** [AGREED]: `permanentPastureAcres` is an
+independent area parameter, on equal footing with arable/meadow/woodland.
+This document does **not** prescribe its numeric value or a fixed percentage.
+Its value is determined outside this physical-model document, by one of two
+modes (interface to the decision-making layer):
+
+- **User-specified mode**: the scenario designer sets `permanentPastureAcres`
+  directly, exactly as for the other three categories.
+- **Solver mode**: the planner (deferred decision-making document) computes
+  the minimum `permanentPastureAcres` such that the village's winter feed
+  balance closes — i.e., total dry-matter/caloric supply from permanent
+  pasture + meadow + arable hay/straw + grain (§5) meets total winter intake
+  requirement for the target herd, without shortfall.
+
+This is the formal seam between this document and the planner: §5 (Feed &
+Forage) must define permanent pasture's DM/kcal yield per acre by season so
+that the solver-mode objective function above is computable; this document
+stops at defining that yield function, and does not run the solver.
+
+**Woodland and arable areas**: both remain independent parameters as in the
+current implementation (`woodlandAcres`, `arableAcres` ≡ current `totalAcres`)
+— no change from current practice, restated here for completeness of the
+accounting identity above.
 
 ### 1.3 Temporary Arable Pasture — [CARRIED OVER]
 
@@ -279,4 +327,7 @@ rationale) and for straw, wool, and cloth (currently zero/undocumented per
 | 2026-06-13 | §5 | Sheep winter grazing offsets hay ration: 100% in normal winter, 0% in deep winter | Sheep graze short swards that cattle cannot exploit efficiently; normal-winter plant growth (already tracked by the model) is a real feed source |
 | 2026-06-13 | §9 | Spoilage revised to ~0.7%/month grain, ~2%/month hay | Prior 3%/5% rates were too high for properly stored medieval grain/hay and would understate viable stock-carrying capacity |
 | 2026-06-13 | §1.1 | Permanent pasture added as a genuine independent land category; meadow area = fixed % of overall land | Permanent pasture was previously absent from the model entirely; meadow's area should scale with village size rather than being pinned |
+| 2026-06-13 | §1.2 | All four land categories are independent parameters; total village land = sum of all four (pure accounting identity) | Geography (land categories) is fixed independently of rotation/herd decisions; conflating "total" with a target or residual would blur the I/O vs. decision-making split |
+| 2026-06-13 | §1.2 | meadowPct = 7.5% of (arable + permanent pasture + woodland) | Midpoint of the previously cited 5-10% range; defined non-circularly against the other three categories |
+| 2026-06-13 | §1.2 | permanentPastureAcres is an independent parameter with no prescribed value/%; set either directly by the user or by the planner solver to satisfy the §5 winter feed balance | Permanent pasture's "correct" size is fundamentally a feed-sufficiency question (how much grazing land does the target herd need to survive winter), which belongs to §5 + the decision-making layer, not a geographic ratio fixed here |
 
