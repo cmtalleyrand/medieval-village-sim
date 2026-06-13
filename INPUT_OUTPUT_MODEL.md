@@ -582,6 +582,44 @@ out-of-season probability is already low) or to suppress cattle breeding
 during a feed-constrained period — without requiring any change to the
 biological probability tables above.
 
+### 4.9 Steady-state offtake (cull) model — [PENDING, deferred to a future batch]
+
+A full derivation of the annual cull (headcount by cohort/sex/castration
+status, and the resulting meat/offal/fat yield) was attempted but found to
+require a fuller model than a single-snapshot steady-state calculation can
+honestly support, and is **deferred**. Findings/requirements established so
+far, for when this batch is picked up:
+
+- **Cattle calving rate**: an initial seasonal-conception derivation gave
+  ≈0.917 calvings/cow/year — **rejected** as implausibly high (exceeds even
+  well-managed *modern* calving rates of ~85–90%, achieved with AI,
+  body-condition management, and year-round feed). A "two calves in three
+  years" heuristic (≈0.667/yr) — reflecting nutritionally-driven postpartum
+  anestrus extending well past §4.1's 2-month modern-dairy figure — is a more
+  defensible order of magnitude for extensive medieval husbandry, but needs
+  proper sourcing/derivation rather than adoption as a round number.
+- **Cull timing**: surplus young stock should be culled at the first
+  opportunity (early autumn, ~6–8 months old) rather than overwintered toward
+  maturity — overwintering surplus animals defeats the purpose of culling
+  (saving winter feed for the core breeding/working herd). Only the
+  replacement-sized cohort overwinters to breeding/working age.
+- **Weight-at-cull**: modern bodyweight *targets* (e.g. 24-month "finished"
+  weights) are not representative of medieval/extensive stock at a 6–8 month
+  autumn cull. An explicit per-month weight-growth curve, calibrated to
+  medieval/extensive (not modern-target) growth rates, is needed.
+- **Full-model requirement**: the eventual model must track cohorts **by
+  month** — conceptions distributed across a breeding-season window (not a
+  single "autumn cohort"), each cohort's age/weight tracked monthly via the
+  growth curve above, with cull/replacement decisions evaluated per cohort.
+- **Sheep flock composition**: a minimal-ewe / wool-economy composition (ewes
+  sized to replacement + a small safety margin, wethers dominant) is
+  directionally consistent with §4.6 ("sheep exist for wool, not milk"), but
+  the exact composition depends on the same monthly model.
+
+Until this model exists, §6.1's meat-product consumption cap uses a round
+placeholder (12 kg/person/month) rather than a value derived from this
+section.
+
 ---
 
 ## 5. Feed & Forage
@@ -841,8 +879,9 @@ Temporary arable pasture (arable land under a grass/ley course rather than perma
 
 ## 6. Animal Products — Chain scope [AGREED], values PENDING
 
-**[AGREED]**: The full product chain is in scope and will be modelled
-end-to-end:
+### 6.1 Chain scope — [AGREED]
+
+The full product chain is in scope and will be modelled end-to-end:
 
 ```
 Cow/ewe milk  →  Cheese (storage form)
@@ -858,9 +897,52 @@ operationalized as a fixed per-household/per-person conversion-capacity
 parameter, pending the full labour model).
 
 Open (future batch): milk→cheese conversion ratio and the storage
-profile of cheese vs. raw milk (spoilage rates differ — see §9); meat→salted
-meat conversion ratio, salt input requirement, and storage life; wool→cloth
+profile of cheese vs. raw milk (spoilage rates differ — see §9); wool→cloth
 conversion rate and the spinning-capacity parameter's value and seasonality.
+
+### 6.2 Meat-product consumption cap and preservation — [AGREED preservation rules; PLACEHOLDER cap]
+
+**Maximum monthly meat-product consumption cap — [AGREED, placeholder value]**:
+
+```
+mealCap_per_capita = 12 kg / person / month
+```
+
+This is a solver-layer ceiling: no more than `mealCap_per_capita × population`
+kg of meat-product (meat + the fat fraction bound to it, see below) may be
+*consumed* in a single month, regardless of how much is in store. It is **not**
+a statement of total annual production. The originally-intended derivation
+(steady-state winter-cull headcount × Pals zooarchaeological yields ÷
+population, weighted `offal + ⅔×meat + ½×fat`) is **deferred to §4.9** pending
+the full month-by-month cohort/growth model; **12 kg/person/month is a round
+placeholder** standing in for that derivation until it exists.
+
+**Preservation rules — [AGREED]** (apply to the cull's meat/offal/fat output):
+
+1. **Fat — bound vs. rendered**: half of the cull's fat **cannot be separated
+   from the meat** and must be consumed with it (counts as part of "meat" for
+   the cap above). The other half is **rendered** (with a **20% conversion
+   loss**) into a separate store (tallow/rendered fat), consumed **year-round**
+   — not subject to `mealCap_per_capita` — with spoilage **lower than, but
+   more variable than,** grain's §9 baseline (~0.7%/month). Exact rate
+   [UNCONFIRMED, deferred to §9].
+2. **Offal preservation**: up to **20%** of offal can be preserved
+   (salted/dried); spoilage **somewhat higher and more variable** than grain.
+   Exact rate [UNCONFIRMED, deferred to §9].
+3. **Meat preservation**: up to **50%** of meat can be preserved (salted);
+   spoilage **somewhat higher and more variable** than grain. Exact rate
+   [UNCONFIRMED, deferred to §9].
+4. **Overflow rule**: meat-product (meat + bound fat + offal) arising from a
+   cull in a given month, in excess of `mealCap_per_capita × population`, is
+   preserved per (2)/(3) rather than consumed fresh — i.e. the cap bounds
+   *consumption*, and preservation (up to its own 20%/50% limits) absorbs the
+   surplus. What happens to any remainder beyond those preservation limits is
+   a rationing/decision-layer question (§0.2), not addressed here.
+
+Open (future batch): meat→salted-meat conversion ratio, salt input
+requirement; numeric spoilage rates for tallow/salted offal/salted meat
+(items 1–3 above); the non-placeholder derivation of `mealCap_per_capita`
+(§4.9).
 
 ---
 
@@ -945,4 +1027,6 @@ rationale) and for straw, wool, and cloth (currently zero/undocumented per
 | 2026-06-13 | §4.4 | Added SHEEP_MAX_AGE=96mo (ewes/rams) as a pure-biology cull trigger; added species-differentiated baseline pre-weaning survival as per-individual random rolls: cattle calves 0.90, non-winter lambs 0.80 | Consistent with COW_MAX_AGE; survival rates sourced from modern mixed crop-livestock mortality data (calves 9.2-14%, lambs 14.9-33.5%), matching the rate the herd-stability formula already assumed but the simulation never applied |
 | 2026-06-13 | §4.5 | Winter-born lamb mortality: 30% if winter feed balance is sufficient, 50% if the village experienced a feed shortfall that winter (replaces the flat 30% rate; does not compound with the §4.4 non-winter baseline) | Neonatal lamb mortality literature identifies starvation/cold-exposure (the "starvation-mismothering-exposure complex") as the dominant cause of winter lamb losses, and shows this risk compounds sharply when feed is inadequate |
 | 2026-06-13 | §4.6 | Added `wether` as a third sheep type: most male lambs become wethers (wool/mutton), with `ewesPerRam≈40` determining how many remain entire as breeding rams | Castrated wethers were historically the dominant component of medieval English wool flocks (better/more wool, easier management) — more accurate than a ram-population cap, and explains where surplus male lambs go |
+| 2026-06-13 | §4.9 | Steady-state offtake/cull model deferred to a future batch; full model must track cohorts by month with a medieval-realistic per-month weight-growth curve | A seasonal-conception derivation gave an implausible 0.917 calvings/cow/yr (exceeds well-managed *modern* rates); a single-snapshot steady-state calc can't honestly resolve cull headcount, timing, and weight together — needs proper monthly cohort tracking |
+| 2026-06-13 | §6.2 | Meat-product consumption cap set to placeholder 12 kg/person/month; fat/offal/meat preservation rules (50% fat bound to meat, remaining fat rendered w/ 20% loss, ≤20% offal & ≤50% meat preservable, all vs. grain spoilage baseline) recorded as [AGREED] | Cap derivation depends on the deferred §4.9 cull model; preservation fractions are user-specified inputs for the solver and don't depend on that derivation |
 
