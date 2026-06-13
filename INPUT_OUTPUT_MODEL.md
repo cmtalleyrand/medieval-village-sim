@@ -173,18 +173,84 @@ permanent pasture's own yield is established first.
 
 ---
 
-## 2. Crops — PENDING
+## 2. Crops — [AGREED]
 
 **[AGREED]**: The spring-crop course has **three distinct members** — barley,
 oats, and legumes — each with independent yield/growth/maturity parameters.
 Legumes are not a residual of a barley/oats split; they are a first-class crop
 with their own acreage.
 
-Open (future batch): per-crop yield (bu/acre or equivalent), growth-unit rates
-and maturity thresholds, straw:grain ratios, and the legume end-use split
-(grain for food vs. grazed vs. plowed in green) and how that split is
-specified (it affects §3, Soil Fertility). Candidate numeric starting points
-exist in `SIMULATION_MODEL.md` §4 (`[CARRIED OVER]`, not yet ratified).
+### 2.1 Growth-unit rates and maturity — [AGREED]
+
+| Crop | Spring | Long-summer | Autumn | Winter | Deep-winter | Maturity (GU) | Harvest timing (9/3 calendar) |
+|---|---|---|---|---|---|---|---|
+| Wheat | 0.7 | 1.0 | 0.7 | 0.15 | 0.0 | 5.95 | ~GM5–6 (sown previous autumn) |
+| Barley | 0.7 | 1.0 | 0.7 | 0.0 | 0.0 | 5.10 | ~GM7 |
+| Oats | 0.7 | 1.0 | 0.7 | 0.0 | 0.0 | 4.40 | ~GM6 |
+| Legumes | 0.7 | 1.0 | 0.7 | 0.0 | 0.0 | **5.80** | **~GM8** |
+
+Wheat/barley/oats confirmed as-is (`[CARRIED OVER]` from `SIMULATION_MODEL.md`
+§4.1, now ratified).
+
+Legumes (peas/beans/vetches) **[AGREED, sourced]**: same seasonal GU pattern
+as oats/barley (spring-sown, no overwintering). Maturity = 5.80 GU = 2 spring
+months (1.4) + 3 summer months (3.0) + 2 autumn months (1.4), harvest ~GM8 —
+**one month later than barley**. This reflects the historically documented
+harvest order: wheat/rye first (~early Aug), barley/oats next (~mid–late
+Aug), and **peas/beans/vetches harvested last** (~Sept), since their pods
+needed full field-drying before lifting.
+
+*Interface note to the decision-making layer*: a GM8 harvest leaves only GM9
+before winter for stubble grazing/temporary pasture on legume fields,
+compared to 2 months for barley. The rotation/scheduling document will need
+to account for this.
+
+### 2.2 Yield, caloric content, and seed rate — [AGREED]
+
+| Crop | Yield (bu/acre, gross of seed) | kcal/bu | Seed rate (bu/acre) | Seed:yield ratio |
+|---|---|---|---|---|
+| Wheat | 10 | 90,000 (60 lb × 1500 kcal/lb) | 2.5 | 4:1 |
+| Barley | 12 | 75,000 (50 lb × 1500 kcal/lb) | 4 | 3:1 |
+| Oats | 12 | 38,000 (32 lb × ~1190 kcal/lb) | 4 | 3:1 |
+| Legumes | **9** | **90,000** (60 lb × ~1500 kcal/lb) | **3** | **3:1** |
+
+Wheat/barley/oats confirmed as-is (`[CARRIED OVER]`, now ratified) — their
+3:1–4:1 seed:yield ratios match the commonly-cited medieval range (vs.
+~20:1+ modern), a useful consistency check, and the underlying yields (10–12
+bu/acre) fall within the documented historical range (wheat/barley/rye/oats
+net yields spanning roughly 4–16 bu/acre across manors and years).
+
+Legumes **[AGREED, sourced]**: yield = 9 bu/acre (midpoint of sourced 8.5–10
+bu/acre range, itself derived from a 3 bu/acre seeding rate); seed rate = 3
+bu/acre (directly sourced: "oats, peas and beans" conventionally sown at 3
+bu/acre, vs. barley at 4); kcal/bu = 90,000, using the same 60 lb/bu × ~1500
+kcal/lb basis as wheat (USDA dried peas/beans ≈ 1547 kcal/lb, close to the
+1500 figure already used for wheat).
+
+### 2.3 Straw/haulm ratios — [AGREED]
+
+**[AGREED — revises prior carried-over figures]**: straw/haulm-to-grain
+ratios by dry weight:
+
+| Crop | Straw/haulm : grain |
+|---|---|
+| Wheat | 1.2 : 1 |
+| Barley | 1.0 : 1 |
+| Oats | 1.5 : 1 |
+| Legumes | 1.8 : 1 |
+
+This supersedes the `SIMULATION_MODEL.md` §4.4 figures (wheat 1.5:1,
+barley/oats 1.2:1), which are now superseded — flagged per R7 (surface
+conflicts, don't average): `SIMULATION_MODEL.md` §4.4 should be updated to
+match this document when the two are reconciled.
+
+### 2.4 Legume end-use split — scope open, deferred to §3
+
+The legume end-use split (fraction of the crop grazed-in-field / plowed-in
+green vs. harvested for grain) still needs its **scope** confirmed (single
+village-wide parameter vs. field/rotation-specific) and its **numeric
+value**. Both are deferred to the §3 (Soil Fertility) batch, where the
+parameter's effect (on `d_legumes`) will be defined alongside it.
 
 ---
 
@@ -330,4 +396,8 @@ rationale) and for straw, wool, and cloth (currently zero/undocumented per
 | 2026-06-13 | §1.2 | All four land categories are independent parameters; total village land = sum of all four (pure accounting identity) | Geography (land categories) is fixed independently of rotation/herd decisions; conflating "total" with a target or residual would blur the I/O vs. decision-making split |
 | 2026-06-13 | §1.2 | meadowPct = 7.5% of (arable + permanent pasture + woodland) | Midpoint of the previously cited 5-10% range; defined non-circularly against the other three categories |
 | 2026-06-13 | §1.2 | permanentPastureAcres is an independent parameter with no prescribed value/%; set either directly by the user or by the planner solver to satisfy the §5 winter feed balance | Permanent pasture's "correct" size is fundamentally a feed-sufficiency question (how much grazing land does the target herd need to survive winter), which belongs to §5 + the decision-making layer, not a geographic ratio fixed here |
+| 2026-06-13 | §2.1/2.2 | Wheat/barley/oats GU rates, maturity (5.95/5.10/4.40), yields (10/12/12 bu/acre), seed rates (2.5/4/4), kcal/bu (90000/75000/38000) confirmed as-is | Seed:yield ratios (4:1/3:1/3:1) match the documented medieval 3:1-4:1 range; yields fall within documented historical 4-16 bu/acre range |
+| 2026-06-13 | §2.1 | Legume maturity = 5.80 GU, harvest ~GM8 (one month after barley), same GU pattern as oats/barley | Sourced harvest-order evidence: peas/beans/vetches were historically the LAST crop harvested, after wheat and after barley/oats |
+| 2026-06-13 | §2.2 | Legume yield = 9 bu/acre, kcal/bu = 90,000, seed rate = 3 bu/acre | Sourced: 8.5-10 bu/acre from 3 bu/acre seed (midpoint=9); 60 lb/bu matches wheat; USDA dried peas/beans ≈ 1547 kcal/lb ≈ wheat's 1500 basis |
+| 2026-06-13 | §2.3 | Straw/haulm:grain ratios revised to wheat 1.2:1, barley 1.0:1, oats 1.5:1, legumes 1.8:1 | User-specified, supersedes SIMULATION_MODEL.md §4.4 figures (wheat 1.5:1, barley/oats 1.2:1) — flagged for reconciliation in that document |
 
