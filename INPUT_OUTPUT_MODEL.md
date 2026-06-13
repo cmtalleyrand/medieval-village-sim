@@ -465,35 +465,377 @@ The existing flat 30% winter-born-lamb mortality (`Math.random() > 0.30` surviva
 
 This supersedes the earlier `ewesPerRam`-as-population-cap framing: `ewesPerRam≈40` is retained, but now determines the ram/wether split among male lambs rather than capping/culling an already-existing ram population.
 
+### 4.7 Winter mortality — extended to all animals — [PROPOSED]
+
+Currently only winter-born lambs (§4.5) face a winter mortality roll; all
+other animals (adult cattle, adult sheep, over-wintering calves/lambs born
+earlier in the year) are immortal with respect to winter conditions —
+inconsistent with the fact that winter (cold, reduced feed, reduced grazing)
+is the dominant seasonal stressor for livestock.
+
+**Research finding**: the only quantified medieval English livestock
+mortality figures found are **epizootic crisis years** — the 1275–80 sheep
+scab epidemic (demesne flocks down ~50%, ~43% of animals dying) and the
+1319–21 cattle panzootic (~62% of bovines lost in England/Wales). These are
+extraordinary, multi-year disease events, not representative of a "normal"
+winter — they are cited here for context only, **not** as the baseline.
+
+No normal-year baseline figure was found in the available sources. The
+figures below are therefore **[PROPOSED] reasoned estimates**, extending the
+same well-fed/underfed structure already agreed for lambs in §4.5 (adults
+are more cold-hardy and carry fat reserves, so adult rates are set lower than
+the lamb rates; first-winter juveniles sit between the two):
+
+| Cohort | Well-fed winter | Underfed winter (village feed shortfall, §6.4) |
+|---|---|---|
+| Adult cattle (cow/ox/bull, ≥36mo) | 2% | 8% |
+| Juvenile cattle (12–36mo, first/second winter) | 3% | 10% |
+| Adult sheep (ewe/ram/wether, ≥12mo) | 3% | 12% |
+| Winter-born lambs | 30% (unchanged, §4.5) | 50% (unchanged, §4.5) |
+| Non-winter-born lambs in their first winter (12mo old in their first winter is already "adult sheep" above — this row covers lambs <12mo old experiencing a winter, i.e. born in spring/summer of the same year) | 8% | 20% |
+
+Implementation: same pattern as §4.5 — an independent per-individual random
+roll once per winter (covering the full 3-month winter season, not per-month),
+with the well-fed/underfed branch selected by the §6.4 feed-shortfall flag for
+that winter. This roll is **separate from and additional to** age-based
+culling (§4.2/§4.4 max-age) and flock-management culling — it represents
+death from cold/disease/malnutrition, not deliberate slaughter.
+
+**[PROPOSED — flagged for decision]**: these specific percentages are
+estimates with no direct medieval source; they are structurally consistent
+with §4.5's sourced lamb figures but the absolute levels are open to
+adjustment.
+
+### 4.8 Reproduction model — monthly conception, seasonality & exposure — [PROPOSED]
+
+**Supersedes** the current rigid model (`COW_MIN_CYCLE`/`EWE_MIN_CYCLE = 12mo`
+hard annual gates, with conception/calving/lambing gated to `!isWinter`).
+Replaced with **per-individual monthly conception probability rolls**,
+year-round, with a seasonal modifier (not a hard gate) and a male
+service-capacity cap.
+
+#### 4.8.1 Monthly conception probability — [PROPOSED]
+
+For each fertile female (past breeding age, not currently pregnant, past her
+postpartum-infertile window per §4.1/§4.3), each month is an independent
+conception roll **if she is "exposed" (§4.8.3)**:
+
+| Species | Estrous cycle | Per-cycle conception rate (natural service) | Resulting in-season monthly probability | Winter modifier |
+|---|---|---|---|---|
+| Cattle | ≈21 days (≈1.4 cycles/month) | 40–60% ([beefrepro.org](https://beefrepro.org/wp-content/uploads/2020/09/04-michael-smith.pdf), [Iowa Beef Center](https://www.iowabeefcenter.org/estrussynch/BullSync.pdf)) | **≈55%** | **×0.5** (≈28%) — cattle cycle year-round but winter cold-stress/poor nutrition measurably depresses fertility |
+| Sheep | ≈17 days (≈1.75 cycles/month) | ~85–98% in natural season ([NMSU](https://aces-newmexicosheep.nmsu.edu/breeding/reproduction.html), [Ontario sheep reproduction](https://www.ontario.ca/page/sheep-reproduction-basics-and-conception-rates)) | **≈75%** (Sep–Jan, autumn breeding season) | **×0.15** (≈11%) for Feb–Aug — ewes are strongly seasonal (anestrous) outside autumn/early winter; a small residual probability is retained rather than a hard zero, since some out-of-season cycling occurs and the user specified "(random)" not "never" |
+
+This directly satisfies **"don't assume a reproductive cycle that limits
+calving to winter only"**: a cow conceiving in, say, January (at the reduced
+≈28% winter probability) will calve ~9 months later (October); a ewe
+conceiving in December (≈11% out-of-season-adjacent... actually December
+falls in the Sep–Jan in-season window at ≈75%, see below) calves/lambs in
+May. Births are no longer gated by month at all — only **conception**
+probability varies by month, and gestation length (§4.1/§4.3, unchanged)
+determines the birth month, which can fall in any season including winter.
+
+`COW_MIN_CYCLE`/`EWE_MIN_CYCLE = 12mo` are **removed** as hard gates; the
+**postpartum-infertile period** (§4.1: 2mo cows, §4.3: 2mo ewes) remains as
+the only hard block on conception immediately after giving birth — after
+that window, the monthly roll applies every month regardless of how recently
+she last calved/lambed. (In practice, ≈55% cattle / ≈75% in-season sheep
+monthly probability means most fertile females conceive again within 1–3
+months of becoming eligible — i.e. **shorter than 12 months on average** —
+which is a deliberate loosening versus the old rigid annual cycle, consistent
+with "overwintered cows can give birth.")
+
+#### 4.8.2 Male service-capacity cap — [PROPOSED]
+
+| Species | Capacity cited in literature | `maxConceptionsPerMalePerMonth` [PROPOSED] | Current ratio (`bullsPerCow=1/12`, `ewesPerRam≈40`) | Binding? |
+|---|---|---|---|---|
+| Cattle (bull) | ~25–35 cows/60–70-day season ≈ 11–17.5/month | **12** | 12 cows/bull | At the boundary — not binding at expected ≈55% conception rate (≈6.6 actual conceptions/month/bull) |
+| Sheep (ram) | ≥5 ewes/day ⇒ up to ~150/34-day season | **40** | 40 ewes/ram | Not binding (40 ≪ 150) |
+
+Each month, total conceptions for a species are capped at
+`numMales × maxConceptionsPerMalePerMonth`; if the number of females rolling
+a successful conception in a given month would exceed this cap, the excess
+are reduced back to "not conceived this month" (re-rolled next month). At
+the current herd-composition ratios (§4.6, `bullsPerCow=1/12`,
+`ewesPerRam≈40`), this cap is set **equal to or above** the expected monthly
+demand and so has **no effect under normal circumstances** — it exists as a
+correctness safeguard for scenarios where bull/ram numbers fall
+disproportionately (e.g. heavy culling), at which point it would
+realistically throttle the herd's growth rate, which is the correct
+behaviour.
+
+#### 4.8.3 "Exposure" — decision-layer seam — [PROPOSED]
+
+New solver-interface boolean parameter, analogous to `permanentPastureAcres`/
+`splitFraction` (§0.3): **`breedingExposure`** (per species — `cattle` and
+`sheep` — independently settable per month). When `true` (the **default** in
+non-solver mode, preserving "always-on" breeding as the baseline), fertile,
+non-pregnant, eligible females are exposed to males per §4.8.1–4.8.2 and roll
+for conception that month. When `false`, **conception probability for that
+species that month = 0** regardless of season/cycling status — males and
+females are kept apart (historically: rams/bulls penned separately from the
+flock/herd outside the desired breeding window).
+
+This gives the future planner/solver a lever to, e.g., concentrate sheep
+conceptions into the Sep–Jan natural window (by setting
+`breedingExposure.sheep = false` for Feb–Aug, which costs little since the
+out-of-season probability is already low) or to suppress cattle breeding
+during a feed-constrained period — without requiring any change to the
+biological probability tables above.
+
 ---
 
-## 5. Feed & Forage — Framework [AGREED], values PENDING
+## 5. Feed & Forage
 
-**[AGREED] — Two-currency model**: Every feed type (grain, hay, straw, pasture
-grass, meadow grass/hay, winter plant growth) is characterized by:
-1. kg dry matter (DM) per unit (e.g. per acre-month, per ton, per bushel)
-2. MJ (or kcal) per kg DM
+### 5.1 Two-currency feed conversion table — [AGREED]/[PROPOSED]
 
-Animal intake requirements are expressed in **both** currencies
-simultaneously (a kg-DM requirement and a caloric requirement), derived from
-historical stocking density (acres of pasture per animal) and recorded winter
-feed rations — not from a single abstracted "feed unit."
+**[AGREED] — Two-currency model**: every stored feed type (hay, oats, straw)
+is characterized by kg dry matter (DM) per natural unit, and kcal per kg DM.
+kcal remains the model's primary energy currency (ties feed directly to the
+existing hay/oats stock-and-balance logic and to human diet/animal-product
+accounting); kg DM is a secondary currency used only for the §6.3
+roughage-minimum check (a mass ratio, not an energy ratio).
 
-**[AGREED] — Sheep winter grazing offset**: Sheep can graze normal
-(non-deep) winter plant growth, not just hay. This can offset:
-- up to **100%** of the hay ration in a **normal winter** month
-- **0%** of the hay ration in a **deep winter** month
+| Feed | Unit | kg DM/unit | kcal/kg DM | kcal/unit | Status |
+|---|---|---|---|---|---|
+| Hay (meadow or arable) | cartload | 250 (`cartloadToKgHay`, treated as DM mass — hay is already dried, ~85-90% DM, so kg≈kg DM to first order) | 2160 (`GRASS_TO_HAY_KCAL_RATIO`×`grassKcalPerKg` = 3.6×600) | 540,000 (`hayKcalPerCartload`, existing) | [AGREED, carried over] |
+| Oats (grain) | bushel | ~13 (32 lb/bu × ~89% DM ≈ 12.9 kg DM/bu) | ~2,920 (38,000÷13) | 38,000 (`cropStats.oats.kcalPerBu`, existing §2.2) | [DERIVED] |
+| Straw (any cereal) | per bushel of **grain** harvested | bushel-weight(kg) × straw:grain ratio (§2.3) × ~85% DM | **~1,300** [PROPOSED] | kg DM × 1,300 | mixed |
 
-(This revises the prior `S4` assumption in `ASSUMPTIONS.md`, which gave sheep
-3 months of free foraging then half/full hay rations on a fixed timeline,
-unrelated to actual winter-severity classification.)
+**Straw mass derivation** — bushel weights are already implicit in the §2.2 kcal/bu figures (kcal/bu ÷ ~1500 kcal/lb for wheat/barley/legumes, ÷ ~1187.5 kcal/lb for oats, converted to kg):
 
-Open (future batch, after §1 area accounting and §4 livestock biology are
-settled): MJ/kg DM and kg DM per acre/ton for each feed type; per-species DM
-and caloric intake requirements (including pregnant/lactating multipliers);
-permanent-pasture and meadow DM yield by season; whether/how the winter-
-grazing-offset logic extends to cattle (currently only specified for sheep);
-the temporary-arable-pasture productivity factor (§1.3).
+| Crop | Bushel weight | Straw:grain ratio (§2.3) | Straw kg per bu of grain harvested | Straw kg DM per bu (×0.85) |
+|---|---|---|---|---|
+| Wheat | 60 lb ≈ 27.2 kg | 1.2 | 32.7 | 27.8 |
+| Barley | 50 lb ≈ 22.7 kg | 1.0 | 22.7 | 19.3 |
+| Oats | 32 lb ≈ 14.5 kg | 1.5 | 21.8 | 18.5 |
+| Legumes | 60 lb ≈ 27.2 kg | 1.8 | 49.0 | 41.6 |
+
+**[PROPOSED]** `strawKcalPerKgDM ≈ 1,300` — straw is mostly structural fibre with low digestibility; typical straw metabolizable energy is ~5.5-6.5 MJ/kg DM versus hay's ~9 MJ/kg DM (the model's existing 2,160 kcal/kg ≈ 9.04 MJ/kg, itself a plausible hay figure). 1,300 kcal/kg DM ≈ 5.4 MJ/kg DM ≈ ~60% of hay's energy density — consistent with `SIMULATION_MODEL.md` §6.3's framing of straw as "low nutrient density but very high volume."
+
+### 5.2 Per-animal feed requirements — bodyweight/metabolic derivation — [PROPOSED, revises carried-over figures]
+
+The carried-over `feedNeedsWinter` table (oats/hay per animal type) was never
+grounded in animal bodyweight, dry-matter (DM) intake, or kcal requirements —
+it was an opaque balance figure. Per the user's explicit requirement, this
+section rebuilds per-animal requirements from first principles in **both
+currencies** (kg DM and kcal), using a bodyweight → metabolic-rate →
+activity-level chain that is **species-parameterized** so a future species
+(e.g. horses, which have different DM%BW ceilings and digestive physiology)
+can be added by adding a row, not by restructuring the model.
+
+#### 5.2.1 Reference bodyweights — [PROPOSED]
+
+| Animal | Bodyweight (kg) | Basis |
+|---|---|---|
+| Ox / working bull | 500 | Medieval cattle were smaller than modern (~650–700kg dairy/beef), but draught oxen were selectively the largest animals available; zooarchaeological withers-height comparisons put medieval cattle at roughly 55–75% of modern volume — 500kg sits at the upper end of that band, consistent with draught selection. |
+| Cow (mature, dairy/dual-purpose) | 400 | Same scaling, lower end — non-draught cows were not selected for size. |
+| Ram | 55 | Medieval sheep were markedly smaller than post-medieval "improved" breeds (Cotswold/Lincoln rams 120–160kg are products of 18th–19th c. selective breeding, not medieval stock); 55kg sits above primitive/unimproved-breed ewe weights (~30–40kg) to reflect a ram's larger frame. |
+| Ewe | 40 | Comparable to modern primitive/hill breeds (e.g. Shetland ewes ~35–45kg), which are the closest living analogue to unimproved medieval wool sheep. |
+| Wether | 50 | Between ewe and ram — castrated males grow larger than ewes but lack a ram's continued masculine growth. |
+
+Growing animals (calves <24 months, lambs <12 months) do not get separate
+bodyweight figures — the existing age-multiplier tiers in §5.2.3 scale the
+**adult** base ration down, as a proportional simplification (a growing
+animal's lower absolute requirement is approximated via the age multiplier
+rather than via an explicit growth curve).
+
+**[PROPOSED — flagged for decision]**: these bodyweights are estimates with
+±15–20% uncertainty (no precise medieval English liveweight data was found in
+research for this batch). They are the single foundational input for
+everything below, so the user's confirmation/adjustment of this table is the
+highest-leverage decision in this section.
+
+#### 5.2.2 Base metabolic energy requirement — Kleiber's law
+
+Basal metabolic rate scales with bodyweight to the power 0.75 (Kleiber's
+law, a standard zoological/physiological relationship, not medieval-specific):
+
+```
+BMR (kcal/day) = 70 × BW(kg)^0.75
+```
+
+| Animal | BW (kg) | BMR (kcal/day) |
+|---|---|---|
+| Ox/bull | 500 | 7,400 |
+| Cow | 400 | 6,260 |
+| Ram | 55 | 1,410 |
+| Ewe | 40 | 1,110 |
+| Wether | 50 | 1,320 |
+
+**`WINTER_ACTIVITY_FACTOR` — [PROPOSED] = 2.5×BMR** — the energy multiple for
+a non-pregnant, non-lactating adult in winter (cold exposure, routine
+activity, no grazing). 2.5× sits within the broadly-cited 2–5×BMR range for
+active/cold-stressed livestock, leaving headroom for the §5.2.3 multipliers
+(pregnancy/lactation/deep-winter) to compose toward — but not past — the
+~5×BMR ceiling associated with sustained peak lactation.
+
+| Animal | Base winter kcal/day (BMR × 2.5) | Base winter kcal/month |
+|---|---|---|
+| Ox/bull | 18,500 | 555,000 |
+| Cow | 15,650 | 469,500 |
+| Ram | 3,530 | 105,900 |
+| Ewe | 2,780 | 83,500 |
+| Wether | 3,290 | 98,700 |
+
+#### 5.2.3 Multiplier table — [AGREED, carried over from Batch 4 derivation]
+
+Combine as `ageMult × max(pregnantMult, lactMult) × deepWinterMult`, applied
+to the §5.2.2 base:
+
+| Factor | Multiplier | Condition |
+|---|---|---|
+| Age | ×0.2 | < 12 months |
+| Age | ×0.5 | 12–36 months |
+| Age | ×1.0 | ≥ 36 months (adult) |
+| Pregnant cow | ×1.3 | `pregnancyMonths ≥ 6` (final trimester of 9-month gestation) |
+| Lactating cow | ×1.2 | `lactationMonths` 1–6 |
+| Pregnant ewe | ×1.5 | `pregnancyMonths ≥ 3` (final 2 months of 5-month gestation) |
+| Lactating ewe | ×1.3 | any `lactationMonths ≥ 1` |
+| Deep winter | ×`deepWinterFeedMultiplier` (1.25) | applies to the combined total, all animals |
+
+**Composability check**: the worst case (lactating ewe, deep winter) =
+2.5 × 1.3 × 1.25 = 4.06×BMR — comfortably under the ~5×BMR physiological
+ceiling. ✓ These multipliers already align with the §4 reproductive-biology
+timelines agreed in Batch 4 and require no change.
+
+#### 5.2.4 DM intake ceiling — [PROPOSED]
+
+A second, independent constraint: ruminants can only physically process a
+bounded amount of dry matter per day regardless of its energy density —
+typically **~3% of bodyweight/day** for forage-based winter diets (general
+ruminant nutrition range ~2–4%BW, narrowing toward the lower end for
+low-quality winter roughage). This ceiling is the basis for the §6.3
+roughage-minimum check (it bounds how much *bulk* feed an animal can take,
+independent of how many kcal that bulk supplies).
+
+| Animal | BW (kg) | DM ceiling (kg/day) | DM ceiling (kg/month) |
+|---|---|---|---|
+| Ox/bull | 500 | 15.0 | 450 |
+| Cow | 400 | 12.0 | 360 |
+| Ram | 55 | 1.65 | 49.5 |
+| Ewe | 40 | 1.20 | 36 |
+| Wether | 50 | 1.50 | 45 |
+
+**Self-consistency cross-check**: an ewe's §5.2.2 base ration (83,500
+kcal/month), if supplied entirely from hay (2,160 kcal/kg DM), requires
+≈38.7 kg DM/month — vs. a 36 kg/month ceiling, i.e. ≈108% of ceiling. For
+cattle, the equivalent all-hay figures (257 kg DM/month for an ox vs. a
+450 kg ceiling; 217 kg vs. 360 kg for a cow) sit comfortably under ceiling.
+This is the expected pattern: **sheep are gut-fill-bound** (their ration is
+capped by bulk, not energy) while **cattle are energy-bound** (their ration
+is capped by kcal need, with DM capacity to spare) — a real, documented
+distinction in ruminant nutrition, and a good sign that the BW=40kg/factor=2.5
+combination for sheep is close to the physical limit rather than wildly off
+in either direction.
+
+#### 5.2.5 R7/R9 — Surfaced finding: carried-over figures imply ~2.4× this derivation
+
+| Animal | Carried-over base (kcal/month) | §5.2.2-derived base (kcal/month) | Ratio |
+|---|---|---|---|
+| Ox/bull | 1,194,000 (3bu oats + 2 cartloads hay) | 555,000 | 2.15× |
+| Cow | 1,156,000 (2bu oats + 2 cartloads hay) | 469,500 | 2.46× |
+| Ewe | 216,000 (0.4 cartloads hay) | 83,500 | 2.59× |
+
+The carried-over figures imply a baseline (non-pregnant, non-lactating adult)
+energy expenditure of **~5.4–6.5×BMR** — a sustained level normally associated
+with *peak lactation in high-yield dairy cattle*, not a routine winter
+baseline for a dry adult. This is a uniform ~2.1–2.6× overstatement across
+**all three** animal types (not just sheep, as the earlier §5.1 sense-check
+suggested in isolation) — consistent with the carried-over figures simply
+never having been derived from bodyweight at all.
+
+**Two ways to resolve (user decision needed)**:
+- **(a)** Adopt the §5.2.2 bodyweight-derived baseline (≈ half the
+  carried-over figures) — this is a significant reduction in modelled winter
+  feed demand and will materially loosen the village's winter feed balance
+  (§6.4) versus the current simulation.
+- **(b)** Keep the carried-over figures, reframed as describing
+  larger/better-fed demesne-quality stock (implying bodyweights ~850–1100kg
+  cattle / ~110kg sheep at factor=3×BMR) — these bodyweights are well outside
+  any sourced medieval (or even modern) range and would themselves need to be
+  documented as the new [PROPOSED] bodyweight table, superseding §5.2.1.
+
+#### 5.2.6 Proposed revised ration table — [PROPOSED]
+
+If (a) is chosen, expressed in the existing oats/hay units (rounded to
+practical fractions; oats retain their current ~10% share of total kcal for
+ox/cow, reflecting historical grain-supplementation of working/dairy
+animals):
+
+| Animal | Oats (bu/month) | Hay (cartloads/month) | kcal/month | DM (kg/month) | vs. DM ceiling |
+|---|---|---|---|---|---|
+| Ox/bull | 1.5 | 1.0 | 327,000 | 269.5 | 60% |
+| Cow | 1.0 | 0.85 | 497,000 | 226 | 63% |
+| Ram | 0 | 0.2 | 108,000 | 50 | 101% |
+| Ewe | 0 | 0.15 | 81,000 | 37.5 | 104% |
+| Wether | 0 | 0.18 | 97,200 | 45 | 100% |
+
+Sheep figures sit right at the DM ceiling (as expected per §5.2.4); cattle
+figures sit well under, with the kcal total close to the §5.2.2 derived
+baseline. **`feedNeedsWinter` would be replaced/extended with per-sex sheep
+rows (ram/ewe/wether) instead of a single `sheepHay` figure**, consistent
+with §4.6's wether addition.
+
+#### 5.2.7 Horse-extensibility note — [PROPOSED, design constraint only]
+
+This bodyweight → BMR → activity-factor → DM-ceiling chain is the
+extensibility seam for horses: a horse row would add `bodyweightKg` (~400–550
+for a medieval draught/pack horse), its own activity factor (horses at hard
+draught work can sustain higher multiples than cattle — commonly cited up to
+~4–5×BMR), and a **lower DM ceiling** (~2–2.5%BW/day vs. ruminants' ~3%, since
+horses are hindgut fermenters with less digestive capacity for fibrous bulk
+and rely on a higher proportion of concentrate/grain). No horse values are
+proposed now — this is noted so §5.2's table structure (not its content) is
+already shaped to accept a horse row without rework.
+
+### 5.3 Sheep/wether/ram winter-grazing offset — operationalized — [DERIVED]
+
+The already-agreed rule (100% offset in normal winter, 0% in deep winter — see Appendix C) is operationalized as a **ration multiplier on the ovine hay requirement** (now applying to all three sheep types — ewes, rams, wethers — per §4.6), not as a separate pasture-energy balance:
+
+```
+ovineHayRation_effective = ovineHayRation_base × (isDeepWinter ? 1 : 0) × [pregnant/lactating/age multipliers as §5.2]
+```
+
+In a normal winter month, sheep/rams/wethers draw **zero** hay from stores (they graze winter pasture growth instead); in a deep-winter month, the full ration (with multipliers) applies as today. No new pasture-DM/kcal-yield parameter is required for this — the offset is expressed entirely as a multiplier on the existing, already-quantified hay ration.
+
+### 5.4 Cattle winter-grazing — partial offset for dry stock — [PROPOSED]
+
+**Revises the earlier "not extended" position.** Sheep can dig through snow
+to reach grass beneath and cattle cannot ([Cornell Small
+Farms](https://smallfarms.cornell.edu/2015/01/considerations-for-winter-grazing-your-sheep/)),
+so the **100%** offset is not extended to cattle. However, a **partial**
+offset for **dry (non-lactating, non-late-pregnant) cattle** is historically
+defensible: pre-industrial mixed farming widely distinguished between
+"yeld" (dry) stock — wintered on rough pasture/aftermath with reduced
+supplementary feeding — and milking/working/late-pregnant animals, which were
+housed and fully hay-fed (general pre-industrial northern-European pattern,
+[Hurstwic](https://www.hurstwic.org/history/articles/daily_living/text/Villages.htm)).
+The model already tracks lactation/pregnancy state per cow for the §5.2.3
+multiplier tiers, so this distinction is free to express:
+
+| Cattle state | Normal winter | Deep winter |
+|---|---|---|
+| Dry adult (multiplier tier = ×1.0, i.e. not pregnant ≥6mo or lactating) | Hay ration ×**0.7** (30% offset) | Hay ration ×1.0 (no offset) |
+| Pregnant (≥6mo) or lactating cow, oxen/bulls (working) | Hay ration ×1.0 (no offset) | Hay ration ×1.0 (no offset) |
+
+Oat rations are unaffected (oats are a stored-grain supplement, not a grazing
+substitute, for any cattle). The **30%** figure is a [PROPOSED] estimate
+(smaller than sheep's 100% because cattle need more total DM and lack
+snow-digging ability, but non-zero because dry cattle were the
+lowest-feeding-priority class) — open to adjustment.
+
+### 5.5 Grazing-area stocking densities (growing season) — [AGREED, carried over]
+
+| Parameter | Value | Role |
+|---|---|---|
+| `pastureAcresPerSheep` | 0.5 | Acres of permanent pasture per sheep, growing season |
+| `pastureAcresPerCattle` | 1 | Acres of permanent pasture per ox/cow/bull, growing season |
+
+During the growing season, pasture/meadow grazing is treated as **land-area-bounded, not DM/kcal-balance-bounded**: these stocking-density ratios are the interface used to derive `permanentPastureAcres` (§1.2) from herd composition. The existing `storedGrass`/intense-grazing mechanic in `simulation.ts` (overgrazing pressure, hay-cut timing) is an internal simulation detail for *how* a pasture parcel responds to grazing pressure, not part of this I/O contract — it is not revisited here.
+
+### 5.6 Temporary arable pasture productivity — [AGREED, carried over from §1.3]
+
+Temporary arable pasture (arable land under a grass/ley course rather than permanent pasture) provides **80%** of permanent pasture's grazing capacity per acre — i.e., 1 acre of temporary arable pasture counts as 0.8 acres toward the §5.5 stocking-density requirement.
 
 ---
 
