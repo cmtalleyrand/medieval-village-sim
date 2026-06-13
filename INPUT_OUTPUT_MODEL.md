@@ -254,13 +254,124 @@ parameter's effect (on `d_legumes`) will be defined alongside it.
 
 ---
 
-## 3. Soil Fertility — PENDING
+## 3. Soil Fertility
 
-`SIMULATION_MODEL.md` §3 contains a candidate depletion/recovery mechanic and
-per-crop depletion rates (`[CARRIED OVER]`, not yet ratified for this model).
-This batch depends on §2 (Crops, for per-crop depletion drivers) and §5
-(Feed & Forage / Livestock, for grazing-manure recovery inputs), so it will be
-addressed after those.
+### 3.1 Depletion and recovery mechanics
+
+Each arable parcel carries a `fertility` scalar. Every month:
+
+```
+if cropped:    fertility -= d(crop, splitFraction) × CROP_GROWTH_RATE[crop][season]
+if uncropped:  fertility += r × GU-equivalent[season/winterType] × (1 - fertility)
+```
+
+### 3.2 Per-crop depletion rates (d) — [PROVISIONALLY CONSISTENT]
+
+| Crop | d (per GU) |
+|---|---|
+| Wheat | 0.040 |
+| Barley | 0.028 |
+| Oats | 0.022 |
+| Arable hay (aftermath) | 0.010 |
+| Legumes | `0.005 − 0.015 × splitFraction` (see 3.3) |
+
+**[PROVISIONALLY CONSISTENT, final check deferred]**: these values (carried
+over from `SIMULATION_MODEL.md` §3, wheat/barley/oats/hay-aftermath
+unchanged) were sense-checked using the simplified §3.3-style equilibrium
+method (see worked examples below) and produce a stable, non-degenerate
+f* ≈ 0.60–0.66 across plausible spring-course mixes and legume
+`splitFraction` values — not pinned at 0 or 1. The **exact** equilibrium f*
+for the actual rotation requires the month-by-month activity ledger
+(decision-making document, `SIMULATION_MODEL.md` §2); d-values and r may
+receive a final tweak at that point if the exact f* turns out to need
+adjustment. Until then, these values are usable for modelling purposes.
+
+### 3.3 Legume depletion model — [AGREED]
+
+```
+d_legumes = 0.005 − 0.015 × splitFraction
+```
+
+where `splitFraction` ∈ [0, 1] = fraction of the legume crop grazed-in-field
+or plowed-in-green (vs. harvested for grain). At splitFraction=0 (fully
+harvested), d=+0.005 (slight net depletion — grain export removes some fixed
+N despite nodule fixation). At splitFraction=1 (fully grazed/plowed-in),
+d=−0.010 (net soil improvement). Linear interpolation in between — chosen over
+the originally-proposed binary 50% threshold to avoid an unphysical
+discontinuity.
+
+**[AGREED]**: `splitFraction` is an **independent parameter**, on the same
+footing as `permanentPastureAcres` (§1.2) — this document does not prescribe
+its value. It is set either directly by the user (non-solver mode) or by the
+planner/solver (solver mode), per the same interface pattern established in
+§1.2.
+
+### 3.4 Recovery rate (r) — [PROVISIONALLY CONSISTENT]
+
+`r = 0.11` (carried over, uniform across all uncropped/fallow land).
+Sense-checked jointly with the d-values above (see 3.6); not independently
+revised. Final value deferred to the rotation/activity-ledger work, same as
+3.2.
+
+### 3.5 Equilibrium fertility (f*) and PLANNER_AVG_FERTILITY — [AGREED]
+
+**[AGREED]**: `f*` (equilibrium fertility under a given rotation) and
+`PLANNER_AVG_FERTILITY` are **not fixed constants in this I/O document**.
+They are **emergent outputs of the decision-making/planner layer**, computed
+by applying the depletion function `d(crop, GU, splitFraction)` (3.2–3.3) and
+recovery function `r × GU-equivalent × (1−f)` (3.1, 3.4) to whatever rotation
+the planner selects. This resolves the `SIMULATION_MODEL.md` §3.2 TODO:
+instead of hardcoding `PLANNER_AVG_FERTILITY ≈ 0.70`, the planner computes it
+from the chosen rotation's depletion/recovery balance.
+
+### 3.6 Yield/fertility anchor — [AGREED]
+
+**[AGREED — re-anchors the yield formula, no change to any agreed crop
+value]**:
+
+```
+yield = baseYield × (fertility / f*)
+```
+
+(previously: `yield = baseYield × fertility`)
+
+**Rationale**: the Batch 2 bu/acre figures (wheat=10, barley=12, oats=12,
+legumes=9) were validated against *documented historical realized yields*.
+With the old formula and f* ≈ 0.60–0.66, the model's long-run realized yield
+would sit at ~60–66% of those figures (e.g. ~6 bu/acre wheat) — roughly 35%
+below the historical record just used to validate them. Re-anchoring so that
+`fertility = f*` (equilibrium) ⟺ `yield = baseYield` makes the Batch 2 figures
+represent yield *at equilibrium*, consistent with how they were sourced.
+
+Under this anchor: `fertilityFloor = 0.40` → yield ≈ `0.40/f* ≈ 65%` of
+baseline (depleted soil); `initialFertility = 0.85` → yield ≈
+`0.85/f* ≈ 137%` of baseline (fresh/good soil at simulation start) — both
+physically sensible. This is a **formula change for the eventual code-change
+phase**; no simulation.ts edits are made now (per process rules, §0.6).
+
+### 3.7 Worked sense-check examples (for reference)
+
+Using `f* = 1 − (wheat_depletion + spring_depletion) / (r × 8.1)`, extended to
+3 spring-course crops:
+
+| Spring mix scenario | spring_depletion | f* |
+|---|---|---|
+| 1/3 barley, 1/3 oats, 1/3 legumes, splitFraction=0.5 | 0.0750 | 0.65 |
+| Same, splitFraction=1.0 | 0.0605 | 0.66 |
+| Same, splitFraction=0.0 | 0.0895 | 0.63 |
+| No legumes, 50/50 barley/oats (original 2-crop case) | 0.1198 | 0.60 |
+
+The bottom row reproduces the original `SIMULATION_MODEL.md` §3.3 estimate
+exactly, confirming the extension to 3 crops is consistent with the prior
+2-crop derivation.
+
+### 3.8 Legume end-use split — resolved
+
+The scope question from §2.4 is resolved by 3.3 above: `splitFraction` is a
+single independent parameter (solver/user-determined), used identically by
+both the soil-fertility effect (this section) and any human-diet/feed
+accounting that depends on how much legume grain reaches storage vs. stays in
+the field (§5, §7).
 
 ---
 
@@ -400,4 +511,9 @@ rationale) and for straw, wool, and cloth (currently zero/undocumented per
 | 2026-06-13 | §2.1 | Legume maturity = 5.80 GU, harvest ~GM8 (one month after barley), same GU pattern as oats/barley | Sourced harvest-order evidence: peas/beans/vetches were historically the LAST crop harvested, after wheat and after barley/oats |
 | 2026-06-13 | §2.2 | Legume yield = 9 bu/acre, kcal/bu = 90,000, seed rate = 3 bu/acre | Sourced: 8.5-10 bu/acre from 3 bu/acre seed (midpoint=9); 60 lb/bu matches wheat; USDA dried peas/beans ≈ 1547 kcal/lb ≈ wheat's 1500 basis |
 | 2026-06-13 | §2.3 | Straw/haulm:grain ratios revised to wheat 1.2:1, barley 1.0:1, oats 1.5:1, legumes 1.8:1 | User-specified, supersedes SIMULATION_MODEL.md §4.4 figures (wheat 1.5:1, barley/oats 1.2:1) — flagged for reconciliation in that document |
+| 2026-06-13 | §3.5 | f* and PLANNER_AVG_FERTILITY are planner-derived emergent outputs, not fixed I/O constants | Equilibrium fertility depends on the rotation/activity mix chosen by the decision layer; hard-coding it in the I/O model would be circular — resolves SIMULATION_MODEL.md §3.2 TODO |
+| 2026-06-13 | §3.3 | Legume fertility depletion = continuous linear interpolation, d_legumes = 0.005 − 0.015 × splitFraction | Legumes' fertility effect ranges from mildly depleting (fully harvested) to net-restorative (fully grazed/plowed-in green); a continuous function avoids an arbitrary discrete cutover |
+| 2026-06-13 | §3.3/§3.8 | splitFraction (grazed-in-field/plowed-in-green vs. harvested legumes) is a single independent parameter, solver/user-determined, shared by §3 fertility and §5/§7 feed-and-diet accounting | Same "solver interface" pattern as permanentPastureAcres — the physically correct split depends on feed sufficiency, which is a decision-layer question |
+| 2026-06-13 | §3.2/§3.4 | Per-crop d-values (wheat 0.040, barley 0.028, oats 0.022, arable-hay-aftermath 0.010) and r=0.11 marked [PROVISIONALLY CONSISTENT] | Sense-check against the historical three-field rotation gives f* in 0.60-0.66 across plausible spring-course mixes, a plausible range; final calibration deferred until the rotation/activity-month ledger is built in the decision-making model |
+| 2026-06-13 | §3.6 | Yield/fertility anchor re-defined: yield = baseYield × (fertility / f*), replacing yield = baseYield × fertility | Under the old anchor, equilibrium fertility (~0.60-0.66) would depress realized yields ~35% below the Batch 2 historical figures just agreed; re-anchoring to f* preserves those figures while keeping the fertility model internally consistent. Formula change deferred to code-change phase |
 
