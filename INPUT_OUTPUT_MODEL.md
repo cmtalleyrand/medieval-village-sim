@@ -375,15 +375,95 @@ the field (§5, §7).
 
 ---
 
-## 4. Livestock Biology — PENDING
+## 4. Livestock Biology
 
-Scope: species set (cattle — oxen/cows/bulls/calves/young stock; sheep —
-ewes/rams/lambs), and for each: gestation length, lactation curve and
-duration, growth/maturation timeline, mortality/lifespan, herd-composition
-ratios (e.g. bulls per cow) — as **pure biology**, independent of cull policy.
+Scope: species set (cattle — oxen/cows/bulls/calves; sheep — ewes/rams/lambs),
+and for each: gestation length, lactation curve and duration, growth/
+maturation timeline, mortality/lifespan, herd-composition ratios — as **pure
+biology**, independent of cull policy (§5.3 of `SIMULATION_MODEL.md`, deferred
+to the decision-making model).
 
-`SIMULATION_MODEL.md` §5 contains relevant candidate values but mixes biology
-with cull-policy rules (`[CARRIED OVER]`, to be separated before ratification).
+### 4.1 Cattle reproductive biology — [AGREED, carried over]
+
+| Parameter | Value | Source |
+|---|---|---|
+| Gestation (`COW_GESTATION`) | 9 months | Cattle gestation ≈ 283 days ≈ 9.3 months — standard bovine biology |
+| Calf weaning (`COW_CALF_WEAN_MONTHS`) | 2 months | Calf nurses exclusively for 2 months; human milking begins month 3 |
+| Lactation duration (`COW_LACTATION_MAX`) | 10 months | Matches the standard 305-day lactation |
+| Lactation curve | Peak at month 3 (first month post-weaning), linear decline to dry at month 10 | `cowMilkKcal()` |
+| Postpartum infertile period | **2 months** | See resolution below |
+| Minimum calving interval (`COW_MIN_CYCLE`) | 12 months (annual calving) | Biological minimum is gestation+postpartum = 11 months; medieval practice was once-yearly calving |
+| Breeding age (cow & bull) | 24 months (2 years) | `ageMonths >= 24` gate in reproduction logic |
+| Calf sex ratio | 50/50 | Standard mammalian sex ratio |
+
+**Postpartum-infertility resolution [AGREED, R7 — surfaced conflict]**: `SIMULATION_MODEL.md` §5.1 prose states "COW_POSTPARTUM ≈ 3 months," but the actual code constant `COW_POSTPARTUM_INFERTILE = 2` and the code's own derivation comment ("Biological minimum would be ... 9+2=11") both use 2 months. The 2-month figure is internally consistent and is also biologically standard (cows can resume cycling ~30-60 days postpartum). **The 3-month figure in `SIMULATION_MODEL.md` §5.1 is superseded** and should be corrected there.
+
+Sourced: cow gestation (283 days) and standard 305-day lactation are well-established veterinary/dairy-science facts, not medieval-specific — used as-is.
+
+### 4.2 Cattle growth, maturation & lifespan — [AGREED]
+
+Three different lifespan/maturation figures previously existed across the codebase and were mutually inconsistent (`simulation.ts`'s shared `CATTLE_MAX_LIFESPAN=120mo` for cows/oxen/bulls; `SIMULATION_MODEL.md` §5.1 prose's "ages 4–10" / `COW_PRODUCTIVE_LIFESPAN≈96mo`; and historical evidence of a ~7-year working-ox lifecycle). Per [Medievalists.net — Horse vs Ox in Medieval Times](https://www.medievalists.net/2023/02/horse-ox-medieval-times/), steers were bought/trained at ~3 years, worked ~4 years, and sold for beef at ~7 years — a working ox's effective lifespan is **shorter** than a breeding cow's because hard labour wears the animal down faster than it biologically ages.
+
+**[AGREED]** — oxen/bulls and cows have **distinct** maturation/lifespan parameters, resolving both the historical mismatch and the internal inconsistency (the old 120mo cull age silently contradicted the herd-stability formula's own 96mo assumption):
+
+| Parameter | Value | Rationale |
+|---|---|---|
+| `OX_BULL_WORKING_AGE` | 36 months (3 yr) | Matches code's existing "active oxen" gate and the historical "bought at ~3yr" evidence |
+| `OX_BULL_MAX_AGE` (cull age) | 84 months (7 yr) | Matches historical "worked ~4yr, sold for beef at ~7yr" — oxen are physically used up faster than cows age |
+| `COW_MAX_AGE` (cull age) | 96 months (8 yr) | Restores consistency with the herd-stability formula's existing `COW_PRODUCTIVE_LIFESPAN=96mo`, which the old 120mo cull age silently contradicted |
+
+`CATTLE_MAX_LIFESPAN=120` and `SIMULATION_MODEL.md` §5.1's "ages 4–10" / `OX_WORKING_LIFESPAN=72mo` framing are superseded by this table (R7 — surfaced conflict, flagged for correction in `SIMULATION_MODEL.md`).
+
+### 4.3 Sheep reproductive biology — [AGREED, carried over]
+
+| Parameter | Value | Source |
+|---|---|---|
+| Gestation (`EWE_GESTATION`) | 5 months | ≈147 days — standard ovine gestation |
+| Lactation duration (`EWE_LACTATION_MAX`) | 4 months | Within the documented 90–150 day (3–5 month) range for non-dairy ewes ([Penn State Extension](https://extension.psu.edu/milking-sheep-production)) |
+| Lactation curve | Full yield months 1–2, half yield months 3–4, then dry | `eweMilkKcal()` |
+| Postpartum infertile period (`EWE_POSTPARTUM_INFERTILE`) | 2 months | Biological minimum cycle = gestation+postpartum = 7 months |
+| Minimum lambing interval (`EWE_MIN_CYCLE`) | 12 months (annual lambing) | Medieval practice was once-yearly lambing, well above the 7-month biological minimum |
+| Breeding age (ewe & ram) | 12 months (1 year) | Modern intensively-fed breeds can conceive at 7–9 months ([NMSU](https://aces-newmexicosheep.nmsu.edu/breeding/reproduction.html)), but slower-maturing medieval/hardy breeds and the desire for a once-yearly cycle make 12 months a reasonable floor — first lambing occurs at ~17 months |
+| Lamb sex ratio | 50/50 | Standard mammalian sex ratio |
+| Winter-born lamb exposure mortality | 30% | Already implemented; applies only to lambs born during winter months |
+
+### 4.4 Sheep lifespan & baseline survival — [AGREED]
+
+Previously, sheep had **no biological age limit** at all (only flock-size and feed-shortfall culling), and there was **no baseline (non-winter) mortality** for lambs or calves — every non-winter birth survived with certainty, even though `SIMULATION_MODEL.md` §5.1's herd-stability *formula* already assumes a calf-survival rate (0.80 to age 1) that the simulation itself never applied.
+
+**[AGREED]**:
+- `SHEEP_MAX_AGE = 96 months` (8 years), applied to both ewes and rams — a pure-biology cull trigger alongside (not replacing) the existing flock-management cull, consistent with `COW_MAX_AGE`.
+- **Species-differentiated baseline pre-weaning survival**, applied as an **independent per-individual random roll at birth** (not a deterministic multiplier on litter size — consistent with how winter-lamb mortality is already implemented via `Math.random()`):
+  - Cattle calves: **0.90** survival (≈9.2–14% modern calf mortality range — [Hadgu et al. 2021](https://pmc.ncbi.nlm.nih.gov/articles/PMC8407976/))
+  - Lambs (non-winter births): **0.80** survival (≈14.9–33.5% modern lamb mortality range, same source)
+
+Cattle calving/breeding is already gated to non-winter months (`!isWinter`), so calves never face the winter-mortality modifier below — only the 0.90 baseline applies.
+
+### 4.5 Winter-lamb mortality modifier — [AGREED]
+
+The existing flat 30% winter-born-lamb mortality (`Math.random() > 0.30` survival roll) is **retained as the well-fed baseline**, but is **not feed-independent**: neonatal-lamb research identifies starvation and cold-stress/exposure as the dominant causes of winter losses — "starvation was associated with 58.3% of lamb deaths" and "hypothermia can account for nearly half of all perinatal lamb losses" ([neonatal lamb mortality literature](https://www.cambridge.org/core/blog/?p=54633)), and these interact: the "starvation-mismothering-exposure complex" describes how cold + inadequate milk/feed compound.
+
+**[AGREED]**:
+- **Well-fed winter**: 30% mortality (70% survival) — unchanged from current behaviour.
+- **Underfed winter** (i.e. the village experienced a feed shortfall per §6.4's feed-balance closure for that winter): mortality rises to **50%** (50% survival) — reflecting the literature's finding that starvation/exposure compounds and can account for the majority of losses under poor conditions.
+- This winter modifier does **not compound** with the 0.80 non-winter-lamb baseline from §4.4 — winter-born lambs use the winter rate (30%/50%) **in place of** the 0.80 baseline, since the winter rate already represents the dominant risk (starvation/exposure) for that cohort. (The 0.80 baseline in §4.4 applies only to lambs born in non-winter months.)
+- Implementation remains a per-individual random roll, with the feed-shortfall flag (already computed for emergency culling, §6.4) selecting which probability (30% vs 50%) to use for that winter's births.
+
+### 4.6 Herd composition ratios & wethers — [AGREED]
+
+| Parameter | Value | Status |
+|---|---|---|
+| `bullsPerCow` | 1/12 | [CARRIED OVER] from `defaults.ts` — confirmed as a reasonable herd-composition ratio |
+| Ram:ewe ratio | previously none — rams emerged purely from the 50/50 lamb sex split | superseded below |
+
+**Research finding**: castrated males (**wethers**) were historically the *dominant* component of medieval English wool flocks — "a full wether flock makes the most sense in eras and locations with high wool prices, such as medieval England" ([Wether — Wikipedia](https://en.wikipedia.org/wiki/Wether_(ruminant))). Wethers produce more wool of better quality than rams or ewes, are easier to manage in large flocks (no fighting), and were historically "castrated and kept on the hill until 3 or 4 years old, sheared each year, then sold for mutton" ([Medievalists.net — Sheep-Rearing in Medieval France](https://www.medievalists.net/2021/01/sheep-rearing-medieval-france/); [Abbey Cwmhir — Medieval sheep farming](https://abbeycwmhir.org/discussion/medieval-sheep-farming/)).
+
+**[AGREED]** — this is **more historically accurate** than a simple ram-population cap, and answers where the "surplus" male lambs go: add **`wether`** as a third sheep type/sex alongside `ewe`/`ram`:
+- At/shortly after birth, male lambs are assigned: a small fraction remain entire as **rams** (sized to maintain `ewesPerRam ≈ 40`, mirroring `bullsPerCow`'s role — within the traditional 1:40–50 ram:ewe mating-ratio range from [Woolshed1](http://woolshed1.blogspot.com/2009/01/sheep-farm-husbandry-reproduction-and.html?m=1)); the remainder become **wethers**.
+- Wethers: grow, are shorn annually (same wool-growth mechanics as ewes/rams — §6 will specify whether their per-head wool yield differs), and are raised for wool/mutton, sold/culled at ~3–4 years (consistent with `OX_BULL_MAX_AGE`-style "working/productive lifespan" framing, but for wool rather than draught).
+- `SHEEP_MAX_AGE=96mo` from §4.4 applies to ewes and rams; wethers are expected to be culled for mutton well before 96mo (~36–48mo) as part of normal flock-composition turnover — this turnover age is a cull-policy/decision-layer parameter, not specified further here.
+
+This supersedes the earlier `ewesPerRam`-as-population-cap framing: `ewesPerRam≈40` is retained, but now determines the ram/wether split among male lambs rather than capping/culling an already-existing ram population.
 
 ---
 
@@ -516,4 +596,11 @@ rationale) and for straw, wool, and cloth (currently zero/undocumented per
 | 2026-06-13 | §3.3/§3.8 | splitFraction (grazed-in-field/plowed-in-green vs. harvested legumes) is a single independent parameter, solver/user-determined, shared by §3 fertility and §5/§7 feed-and-diet accounting | Same "solver interface" pattern as permanentPastureAcres — the physically correct split depends on feed sufficiency, which is a decision-layer question |
 | 2026-06-13 | §3.2/§3.4 | Per-crop d-values (wheat 0.040, barley 0.028, oats 0.022, arable-hay-aftermath 0.010) and r=0.11 marked [PROVISIONALLY CONSISTENT] | Sense-check against the historical three-field rotation gives f* in 0.60-0.66 across plausible spring-course mixes, a plausible range; final calibration deferred until the rotation/activity-month ledger is built in the decision-making model |
 | 2026-06-13 | §3.6 | Yield/fertility anchor re-defined: yield = baseYield × (fertility / f*), replacing yield = baseYield × fertility | Under the old anchor, equilibrium fertility (~0.60-0.66) would depress realized yields ~35% below the Batch 2 historical figures just agreed; re-anchoring to f* preserves those figures while keeping the fertility model internally consistent. Formula change deferred to code-change phase |
+| 2026-06-13 | §4.1 | Cattle reproductive biology confirmed as-is (gestation 9mo, lactation 10mo/curve, weaning 2mo, postpartum infertile 2mo, min cycle 12mo, breeding age 24mo) | Cow gestation (283 days) and 305-day lactation are standard bovine biology; 12-month cycle matches documented medieval once-yearly calving practice |
+| 2026-06-13 | §4.1 | COW_POSTPARTUM_INFERTILE = 2 months confirmed; SIMULATION_MODEL.md §5.1's "≈3 months" figure superseded | The code constant and its own derivation comment (9+2=11) already use 2 months and are internally consistent; 3 months was a doc-only discrepancy |
+| 2026-06-13 | §4.2 | Cattle given distinct lifespan/maturation parameters: OX_BULL_WORKING_AGE=36mo, OX_BULL_MAX_AGE=84mo, COW_MAX_AGE=96mo, replacing shared CATTLE_MAX_LIFESPAN=120mo | Sourced: medieval oxen bought ~3yr, worked ~4yr, sold for beef ~7yr — oxen are physically used up faster than cows age. Also restores consistency with the herd-stability formula's existing 96mo cow-productive-lifespan assumption, which the old 120mo cull age silently contradicted |
+| 2026-06-13 | §4.3 | Sheep reproductive biology confirmed as-is (gestation 5mo, lactation 4mo/curve, postpartum infertile 2mo, min cycle 12mo, breeding age 12mo, winter-born lamb base mortality 30%) | Gestation (≈147 days) and lactation duration (90-150 day range) are standard ovine biology; 12-month cycle matches medieval once-yearly lambing practice |
+| 2026-06-13 | §4.4 | Added SHEEP_MAX_AGE=96mo (ewes/rams) as a pure-biology cull trigger; added species-differentiated baseline pre-weaning survival as per-individual random rolls: cattle calves 0.90, non-winter lambs 0.80 | Consistent with COW_MAX_AGE; survival rates sourced from modern mixed crop-livestock mortality data (calves 9.2-14%, lambs 14.9-33.5%), matching the rate the herd-stability formula already assumed but the simulation never applied |
+| 2026-06-13 | §4.5 | Winter-born lamb mortality: 30% if winter feed balance is sufficient, 50% if the village experienced a feed shortfall that winter (replaces the flat 30% rate; does not compound with the §4.4 non-winter baseline) | Neonatal lamb mortality literature identifies starvation/cold-exposure (the "starvation-mismothering-exposure complex") as the dominant cause of winter lamb losses, and shows this risk compounds sharply when feed is inadequate |
+| 2026-06-13 | §4.6 | Added `wether` as a third sheep type: most male lambs become wethers (wool/mutton), with `ewesPerRam≈40` determining how many remain entire as breeding rams | Castrated wethers were historically the dominant component of medieval English wool flocks (better/more wool, easier management) — more accurate than a ram-population cap, and explains where surplus male lambs go |
 
