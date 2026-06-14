@@ -751,7 +751,7 @@ roughage-minimum check (a mass ratio, not an energy ratio).
 |---|---|---|---|---|---|
 | Hay (meadow or arable) | cartload | 250 (`cartloadToKgHay`, treated as DM mass — hay is already dried, ~85-90% DM, so kg≈kg DM to first order) | 2160 (`GRASS_TO_HAY_KCAL_RATIO`×`grassKcalPerKg` = 3.6×600) | 540,000 (`hayKcalPerCartload`, existing) | [AGREED, carried over] |
 | Oats (grain) | bushel | ~13 (32 lb/bu × ~89% DM ≈ 12.9 kg DM/bu) | ~2,920 (38,000÷13) | 38,000 (`cropStats.oats.kcalPerBu`, existing §2.2) | [DERIVED] |
-| Straw (any cereal) | per bushel of **grain** harvested | bushel-weight(kg) × straw:grain ratio (§2.3) × ~85% DM | **~1,300** [PROPOSED] | kg DM × 1,300 | mixed |
+| Straw (any cereal) | per bushel of **grain** harvested | bushel-weight(kg) × straw:grain ratio (§2.3) × ~85% DM | **~1,300** [AGREED] | kg DM × 1,300 | mixed |
 
 **Straw mass derivation** — bushel weights are already implicit in the §2.2 kcal/bu figures (kcal/bu ÷ ~1500 kcal/lb for wheat/barley/legumes, ÷ ~1187.5 kcal/lb for oats, converted to kg):
 
@@ -762,9 +762,9 @@ roughage-minimum check (a mass ratio, not an energy ratio).
 | Oats | 32 lb ≈ 14.5 kg | 1.5 | 21.8 | 18.5 |
 | Legumes | 60 lb ≈ 27.2 kg | 1.8 | 49.0 | 41.6 |
 
-**[PROPOSED]** `strawKcalPerKgDM ≈ 1,300` — straw is mostly structural fibre with low digestibility; typical straw metabolizable energy is ~5.5-6.5 MJ/kg DM versus hay's ~9 MJ/kg DM (the model's existing 2,160 kcal/kg ≈ 9.04 MJ/kg, itself a plausible hay figure). 1,300 kcal/kg DM ≈ 5.4 MJ/kg DM ≈ ~60% of hay's energy density — consistent with `SIMULATION_MODEL.md` §6.3's framing of straw as "low nutrient density but very high volume."
+**[AGREED]** `strawKcalPerKgDM ≈ 1,300` — straw is mostly structural fibre with low digestibility; typical straw metabolizable energy is ~5.5-6.5 MJ/kg DM versus hay's ~9 MJ/kg DM (the model's existing 2,160 kcal/kg ≈ 9.04 MJ/kg, itself a plausible hay figure). 1,300 kcal/kg DM ≈ 5.4 MJ/kg DM ≈ ~60% of hay's energy density — consistent with `SIMULATION_MODEL.md` §6.3's framing of straw as "low nutrient density but very high volume." Adopted as the central value (the 5.4 MJ/kg figure sits just below the cited 5.5–6.5 MJ/kg band, conservative for low-quality medieval straw); revisitable if a digestibility-specific source warrants.
 
-### 5.2 Per-animal feed requirements — bodyweight/metabolic derivation — [PROPOSED, revises carried-over figures]
+### 5.2 Per-animal feed requirements — bodyweight/metabolic derivation — [AGREED, revises carried-over figures]
 
 The carried-over `feedNeedsWinter` table (oats/hay per animal type) was never
 grounded in animal bodyweight, dry-matter (DM) intake, or kcal requirements —
@@ -775,15 +775,28 @@ activity-level chain that is **species-parameterized** so a future species
 (e.g. horses, which have different DM%BW ceilings and digestive physiology)
 can be added by adding a row, not by restructuring the model.
 
-#### 5.2.1 Reference bodyweights — [PROPOSED]
+#### 5.2.1 Reference bodyweights — [AGREED] (cow 400 kg confirmed)
 
-| Animal | Bodyweight (kg) | Basis |
+Bodyweights are anchored to **living unimproved-breed analogues at the
+zooarchaeologically-attested medieval withers height**, not to modern improved
+stock. Medieval English cattle stood ~**110 cm** at the withers ([*Cattle in
+the Middle Ages*](http://www.personal.utulsa.edu/~marc-carlson/history/cattle.html);
+[London livestock size, AD 1220–1900](https://www.sciencedirect.com/science/article/abs/pii/S0305440313000885))
+— close to a modern **Highland cow (105 cm, 450 kg)** and a **Dexter cow
+(~105 cm, ~325 kg)** ([Highland cattle](https://en.wikipedia.org/wiki/Highland_cattle),
+[Dexter cattle](https://en.wikipedia.org/wiki/Dexter_cattle)). Medieval sheep
+stood ~**57–60 cm** ([Cameron et al., *Internet Archaeol.* 52](https://intarch.ac.uk/journal/issue52/1/9-1-6.html)),
+"small and stunted" ([French sheep morphology 9th–19th c.](https://www.sciencedirect.com/science/article/abs/pii/S0305440318301018)),
+bracketing the primitive **Shetland ewe (~35–45 kg)** below and the improved
+**Southdown ewe (~60 cm, 59–68 kg)** above.
+
+| Animal | Bodyweight (kg) | Basis (living analogue at medieval withers height) |
 |---|---|---|
-| Ox / working bull | 500 | Medieval cattle were smaller than modern (~650–700kg dairy/beef), but draught oxen were selectively the largest animals available; zooarchaeological withers-height comparisons put medieval cattle at roughly 55–75% of modern volume — 500kg sits at the upper end of that band, consistent with draught selection. |
-| Cow (mature, dairy/dual-purpose) | 400 | Same scaling, lower end — non-draught cows were not selected for size. |
-| Ram | 55 | Medieval sheep were markedly smaller than post-medieval "improved" breeds (Cotswold/Lincoln rams 120–160kg are products of 18th–19th c. selective breeding, not medieval stock); 55kg sits above primitive/unimproved-breed ewe weights (~30–40kg) to reflect a ram's larger frame. |
-| Ewe | 40 | Comparable to modern primitive/hill breeds (e.g. Shetland ewes ~35–45kg), which are the closest living analogue to unimproved medieval wool sheep. |
-| Wether | 50 | Between ewe and ram — castrated males grow larger than ewes but lack a ram's continued masculine growth. |
+| Ox / working bull | 500 | Castrated males / bulls carry more frame than cows and draught oxen were selectively the largest available; 500 kg sits between the Highland cow (450) and Highland bull (650), at the top of the medieval-sized band. |
+| Cow (mature, dairy/dual-purpose) | 400 | Between the Dexter cow (325) and Highland cow (450) at ~105–110 cm withers; leans to the lower/unimproved end since non-draught cows were not size-selected. **Could defensibly be 450** (full Highland-cow analogue) — see decision note. |
+| Ram | 55 | A ram carries ~35–40% more frame than an ewe of the same breed; 55 kg sits above the Shetland-analogue ewe to reflect that, while staying well below improved post-medieval rams (Cotswold/Lincoln 120–160 kg are 18th–19th c. products). |
+| Ewe | 40 | Shetland ewe (~35–45 kg) is the closest living analogue to unimproved medieval wool sheep at the attested 57–60 cm withers; a stunted/slender medieval ewe weighs less than a compact improved Southdown of the same height, so 40 kg leans to the middle of the Shetland band. |
+| Wether | 50 | Between ewe and ram — castrated males grow a larger frame than ewes but lack a ram's continued masculine growth. |
 
 Growing animals (calves <24 months, lambs <12 months) do not get separate
 bodyweight figures — the existing age-multiplier tiers in §5.2.3 scale the
@@ -791,11 +804,12 @@ bodyweight figures — the existing age-multiplier tiers in §5.2.3 scale the
 animal's lower absolute requirement is approximated via the age multiplier
 rather than via an explicit growth curve).
 
-**[PROPOSED — flagged for decision]**: these bodyweights are estimates with
-±15–20% uncertainty (no precise medieval English liveweight data was found in
-research for this batch). They are the single foundational input for
-everything below, so the user's confirmation/adjustment of this table is the
-highest-leverage decision in this section.
+**[AGREED 2026-06-14]**: cow confirmed at **400 kg** (unimproved-leaning, the
+Dexter–Highland midpoint); ox 500 / ram 55 / ewe 40 / wether 50 confirmed as
+listed. Residual uncertainty is ±~10–15% (bounded by the analogue spread, e.g.
+cow 325–450 kg) — should higher-resolution medieval liveweight data later
+warrant a shift (e.g. cow → 450, the full Highland-cow analogue), every figure
+below rescales mechanically off this table.
 
 #### 5.2.2 Base metabolic energy requirement — Kleiber's law
 
@@ -814,12 +828,24 @@ BMR (kcal/day) = 70 × BW(kg)^0.75
 | Ewe | 40 | 1,110 |
 | Wether | 50 | 1,320 |
 
-**`WINTER_ACTIVITY_FACTOR` — [PROPOSED] = 2.5×BMR** — the energy multiple for
-a non-pregnant, non-lactating adult in winter (cold exposure, routine
-activity, no grazing). 2.5× sits within the broadly-cited 2–5×BMR range for
-active/cold-stressed livestock, leaving headroom for the §5.2.3 multipliers
-(pregnancy/lactation/deep-winter) to compose toward — but not past — the
-~5×BMR ceiling associated with sustained peak lactation.
+**`WINTER_ACTIVITY_FACTOR` = 2.5×BMR — [DERIVED, validated against measured
+maintenance ME]** — the energy multiple for a non-pregnant, non-lactating
+adult in winter (cold exposure, routine activity, no grazing). This is **not**
+a free pick: published suckler-cow maintenance metabolizable-energy is
+**0.596 MJ/kg⁰·⁷⁵/day** (mean; range 0.389–0.796) ([*Energy Requirements of
+Beef Cattle*, MDPI *Animals* 2021](https://www.mdpi.com/2076-2615/11/6/1642)).
+For a 400 kg cow (BW⁰·⁷⁵ = 89.4): 0.596 × 89.4 = 53.3 MJ/day ≈ **12,700 kcal
+ME/day** at thermoneutral maintenance — i.e. **≈2.0×BMR** (12,700 ÷ 6,260).
+Adding the standard cold-stress increment for an unhoused winter animal below
+its lower critical temperature (~+20–30%, [NRC *Effect of Environment on
+Nutrient Requirements*](https://www.ncbi.nlm.nih.gov/books/NBK232316/)) lands
+at **≈2.4–2.6×BMR** — so **2.5×BMR is the measured cold-stressed maintenance
+of a real dry cow**, not a guess. It also leaves headroom for the §5.2.3
+multipliers (pregnancy/lactation/deep-winter) to compose toward — but not past
+— the ~5×BMR ceiling associated with sustained peak lactation. The same 2.5×
+is applied across species absent species-specific cold-maintenance data; this
+is the proportional simplification flagged in §5.2.7 (a future species can
+override it).
 
 | Animal | Base winter kcal/day (BMR × 2.5) | Base winter kcal/month |
 |---|---|---|
@@ -850,7 +876,7 @@ to the §5.2.2 base:
 ceiling. ✓ These multipliers already align with the §4 reproductive-biology
 timelines agreed in Batch 4 and require no change.
 
-#### 5.2.4 DM intake ceiling — [PROPOSED]
+#### 5.2.4 DM intake ceiling — [AGREED]
 
 A second, independent constraint: ruminants can only physically process a
 bounded amount of dry matter per day regardless of its energy density —
@@ -896,27 +922,48 @@ baseline for a dry adult. This is a uniform ~2.1–2.6× overstatement across
 suggested in isolation) — consistent with the carried-over figures simply
 never having been derived from bodyweight at all.
 
-**Two ways to resolve (user decision needed)**:
-- **(a)** Adopt the §5.2.2 bodyweight-derived baseline (≈ half the
-  carried-over figures) — this is a significant reduction in modelled winter
+**Two independent disqualifying arguments against the carried-over figures**
+(not merely "they look high"):
+
+1. **Energy.** A cow's carried-over ration (38,530 kcal/day) is **3.0× the
+   measured thermoneutral maintenance** of a 400 kg suckler cow (12,700
+   kcal/day, §5.2.2) and **2.5× even the cold-stressed winter figure** (15,650
+   kcal/day). 3× maintenance, sustained all winter on a *dry* animal, has no
+   physiological basis.
+2. **Gut capacity — decisive, and independent of energy.** The carried-over
+   **2 cartloads of hay/month = 500 kg DM/month = 16.7 kg DM/day**. A 400 kg
+   cow's physical dry-matter intake ceiling is ~3%BW = **12 kg DM/day = 360
+   kg/month** (§5.2.4). The hay ration *alone* is **139% of the cow's intake
+   ceiling** — before adding the 2 bu of oats. **A medieval-sized cow cannot
+   physically eat the carried-over ration**, regardless of its energy content.
+   (Ox: carried-over hay 500 kg/month vs. a 450 kg/month ceiling = 111%, plus
+   3 bu oats — also over ceiling.)
+
+**Resolution (user decision needed, but argument 2 forecloses option (b))**:
+- **(a) — recommended.** Adopt the §5.2.2 bodyweight-derived baseline (≈ half
+  the carried-over figures). This is a significant reduction in modelled winter
   feed demand and will materially loosen the village's winter feed balance
-  (§6.4) versus the current simulation.
-- **(b)** Keep the carried-over figures, reframed as describing
-  larger/better-fed demesne-quality stock (implying bodyweights ~850–1100kg
-  cattle / ~110kg sheep at factor=3×BMR) — these bodyweights are well outside
-  any sourced medieval (or even modern) range and would themselves need to be
-  documented as the new [PROPOSED] bodyweight table, superseding §5.2.1.
+  (§6.4) versus the current simulation — but it is the *physically correct*
+  demand for medieval-sized stock, and the carried-over figures were
+  un-eatable, so the current sim's feed balance was tightened by an artifact.
+- **(b) — not viable.** Keeping the carried-over figures would require
+  bodyweights of ~850–1,100 kg cattle / ~110 kg sheep (to make the rations
+  both energetically and *physically* eatable). Those are well outside any
+  sourced medieval — or even modern unimproved — range (cf. the Highland bull
+  at 650 kg, §5.2.1), and would contradict the zooarchaeological withers-
+  height evidence. Listed only for completeness.
 
-#### 5.2.6 Proposed revised ration table — [PROPOSED]
+#### 5.2.6 Revised ration table — [AGREED] (option (a) adopted)
 
-If (a) is chosen, expressed in the existing oats/hay units (rounded to
-practical fractions; oats retain their current ~10% share of total kcal for
+Option (a) adopted (§5.2.5). Expressed in the existing oats/hay units (rounded
+to practical fractions; oats retain their current ~10% share of total kcal for
 ox/cow, reflecting historical grain-supplementation of working/dairy
-animals):
+animals). These are the **housed, no-grazing-offset** baseline rations; §5.3
+then reduces the hay component for stock that winter-graze:
 
 | Animal | Oats (bu/month) | Hay (cartloads/month) | kcal/month | DM (kg/month) | vs. DM ceiling |
 |---|---|---|---|---|---|
-| Ox/bull | 1.5 | 1.0 | 327,000 | 269.5 | 60% |
+| Ox/bull | 1.5 | 1.0 | 597,000 | 269.5 | 60% |
 | Cow | 1.0 | 0.85 | 497,000 | 226 | 63% |
 | Ram | 0 | 0.2 | 108,000 | 50 | 101% |
 | Ewe | 0 | 0.15 | 81,000 | 37.5 | 104% |
@@ -940,41 +987,96 @@ and rely on a higher proportion of concentrate/grain). No horse values are
 proposed now — this is noted so §5.2's table structure (not its content) is
 already shaped to accept a horse row without rework.
 
-### 5.3 Sheep/wether/ram winter-grazing offset — operationalized — [DERIVED]
+### 5.3 Winter grazing — productivity-bounded offset with cold-exposure cost — [AGREED, refines the prior binary rule]
 
-The already-agreed rule (100% offset in normal winter, 0% in deep winter — see Appendix C) is operationalized as a **ration multiplier on the ovine hay requirement** (now applying to all three sheep types — ewes, rams, wethers — per §4.6), not as a separate pasture-energy balance:
+**Supersedes the earlier "100% normal winter / 0% deep winter" binary
+multiplier** (Appendix C, 2026-06-13). Two physical realities, raised by the
+user, make a flat hay-ration multiplier wrong:
+
+1. **The offset is a *maximum*, capped by what the winter pasture actually
+   grows.** Grazing can only replace hay to the extent there is grazeable
+   forage in the field that month. The model **already quantifies** this:
+   pasture/meadow grow at `WINTER_GRASS_GROWTH_RATE = 0.2` GU/month in a
+   normal-winter month versus **0 in deep winter** (`simulation.ts:289, 975`)
+   — i.e. winter growth is ~20–30% of the growing-season rate (0.7–1.0), and
+   the grazeable supply per month is that growth × the available grazing area,
+   in the grass-kcal currency (`grassKcalPerKg`). This is the same physical
+   pool (`storedGrass`) the summer grazing draws on; winter simply adds little
+   to it.
+2. **Winter grazing is not free — it carries a cold-exposure cost.** An animal
+   out in an open field is exposed to more cold than one housed in a byre
+   (shelter + shared body heat), so its maintenance requirement rises modestly
+   for the months it grazes out. This partially offsets the hay it saves.
+
+**Mechanic (replaces the flat multiplier; applies to all grazing stock —
+sheep/wethers/rams, and the dry cattle of §5.4)**:
 
 ```
-ovineHayRation_effective = ovineHayRation_base × (isDeepWinter ? 1 : 0) × [pregnant/lactating/age multipliers as §5.2]
+# 1. Cold-exposure increment for an animal out grazing this winter month:
+maintenance_grazing = maintenance_base(§5.2.2–§5.2.3) × WINTER_GRAZING_COLD_FACTOR
+
+# 2. Grazeable energy it can actually obtain, bounded by BOTH its class cap
+#    AND its share of this month's real winter pasture growth:
+grazed_kcal = min( offsetCap_class × maintenance_grazing ,
+                   animal_share_of( winterPastureGrowth_kcal_this_month ) )
+
+# 3. Remainder drawn from hay stores:
+hayRation_effective = max(0, maintenance_grazing − grazed_kcal) expressed in cartloads
 ```
 
-In a normal winter month, sheep/rams/wethers draw **zero** hay from stores (they graze winter pasture growth instead); in a deep-winter month, the full ration (with multipliers) applies as today. No new pasture-DM/kcal-yield parameter is required for this — the offset is expressed entirely as a multiplier on the existing, already-quantified hay ration.
-
-### 5.4 Cattle winter-grazing — partial offset for dry stock — [PROPOSED]
-
-**Revises the earlier "not extended" position.** Sheep can dig through snow
-to reach grass beneath and cattle cannot ([Cornell Small
-Farms](https://smallfarms.cornell.edu/2015/01/considerations-for-winter-grazing-your-sheep/)),
-so the **100%** offset is not extended to cattle. However, a **partial**
-offset for **dry (non-lactating, non-late-pregnant) cattle** is historically
-defensible: pre-industrial mixed farming widely distinguished between
-"yeld" (dry) stock — wintered on rough pasture/aftermath with reduced
-supplementary feeding — and milking/working/late-pregnant animals, which were
-housed and fully hay-fed (general pre-industrial northern-European pattern,
-[Hurstwic](https://www.hurstwic.org/history/articles/daily_living/text/Villages.htm)).
-The model already tracks lactation/pregnancy state per cow for the §5.2.3
-multiplier tiers, so this distinction is free to express:
-
-| Cattle state | Normal winter | Deep winter |
+| Parameter | Value | Status / basis |
 |---|---|---|
-| Dry adult (multiplier tier = ×1.0, i.e. not pregnant ≥6mo or lactating) | Hay ration ×**0.7** (30% offset) | Hay ration ×1.0 (no offset) |
-| Pregnant (≥6mo) or lactating cow, oxen/bulls (working) | Hay ration ×1.0 (no offset) | Hay ration ×1.0 (no offset) |
+| `WINTER_GRAZING_COLD_FACTOR` | **1.10** (a +10% maintenance increment while grazing out) | [PROPOSED] — "modest but non-zero" per the user; the housed-vs-unhoused difference in cold-stress load, on top of the §5.2.2 base which already includes general winter cold stress. Range 1.05–1.15, adjustable. |
+| `offsetCap_class` — sheep (ewe/wether/ram) | **1.0** (up to 100% of maintenance grazeable) | [AGREED] — sheep dig through snow to reach grass that cattle cannot ([Cornell Small Farms](https://smallfarms.cornell.edu/2015/01/considerations-for-winter-grazing-your-sheep/)); but realized only up to the pasture-supply bound in step 2. |
+| `offsetCap_class` — dry cattle (§5.4) | **0.30** | [AGREED] — see §5.4. |
+| `offsetCap_class` — working oxen/bulls, lactating/late-pregnant cows | **0** (housed, fully hay-fed, no cold increment) | [AGREED] — see §5.4. |
 
-Oat rations are unaffected (oats are a stored-grain supplement, not a grazing
-substitute, for any cattle). The **30%** figure is a [PROPOSED] estimate
-(smaller than sheep's 100% because cattle need more total DM and lack
+**Emergent consequences (why this is better than the binary rule)**: in deep
+winter, winter growth = 0 ⇒ `grazed_kcal = 0` ⇒ full hay ration applies
+automatically — the old "0% in deep winter" rule is now an *emergent*
+property, not a hardcoded special case, and it generalizes correctly to
+arbitrarily long/severe winters and to any stocking density. At high stocking
+density (large herd, little pasture), the supply bound in step 2 throttles the
+offset below the class cap even in a normal winter — exactly the
+"field-productivity-dependent maximum" the user required. The cold factor in
+step 1 means the net hay saved is always slightly less than the gross grazed
+energy. **R7 note**: this makes winter grazing *balance-bounded* (by forage
+energy), in deliberate contrast to §5.5's *land-area-bounded* summer grazing —
+correct, because forage is the binding constraint in winter and land area is
+the binding constraint in summer.
+
+This mechanic applies to all three sheep types (ewes, rams, wethers, per §4.6)
+with `offsetCap = 1.0`; oat rations (cattle only) are unaffected throughout
+(oats are a stored-grain supplement, not a grazing substitute).
+
+### 5.4 Cattle winter-grazing — partial offset for dry stock only — [AGREED]
+
+**Revises the earlier "not extended to cattle" position.** Sheep can dig
+through snow to reach grass beneath and cattle cannot
+([Cornell Small Farms](https://smallfarms.cornell.edu/2015/01/considerations-for-winter-grazing-your-sheep/)),
+so cattle do **not** get sheep's full (cap = 1.0) offset. But a **partial**
+offset for **dry (non-lactating, non-late-pregnant) cattle** is historically
+defensible: pre-industrial mixed farming widely distinguished "yeld" (dry)
+stock — wintered on rough pasture/aftermath with reduced supplementary feeding
+— from milking/working/late-pregnant animals, which were housed and fully
+hay-fed (general pre-industrial northern-European pattern,
+[Hurstwic](https://www.hurstwic.org/history/articles/daily_living/text/Villages.htm)).
+The model already tracks lactation/pregnancy state per cow (the §5.2.3
+multiplier tiers), so this distinction is free to express via `offsetCap_class`
+in the §5.3 mechanic:
+
+| Cattle state | `offsetCap_class` | Notes |
+|---|---|---|
+| Dry adult cow (multiplier tier ×1.0 — not pregnant ≥6mo, not lactating) | **0.30** | Goes out to grass; subject to the §5.3 pasture-supply bound and the ×1.10 cold factor. |
+| Lactating or late-pregnant (≥6mo) cow; oxen/bulls (working) | **0** | Housed, fully hay-fed, no cold increment. |
+
+The **30%** cap is the user-confirmed **maximum** (not a guaranteed offset):
+smaller than sheep's 100% because cattle need more total DM and lack
 snow-digging ability, but non-zero because dry cattle were the
-lowest-feeding-priority class) — open to adjustment.
+lowest-feeding-priority class. As with sheep, the *realized* offset is the
+lesser of this cap and the actual winter pasture supply (§5.3 step 2), so in a
+hard winter or at high stocking density a dry cow may get well under 30% in
+practice. Oat rations are unaffected for all cattle.
 
 ### 5.5 Grazing-area stocking densities (growing season) — [AGREED, carried over]
 
@@ -1297,5 +1399,10 @@ rationale) and for straw, wool, and cloth (currently zero/undocumented per
 | 2026-06-14 | §7.3 | Dairy availability = §4.1/§4.3 lactation curves × (0.35 if winter, else 1); `ASSUMPTIONS.md` D5 (36/48mo age-banded milk %) flagged as stale/superseded, D7 (winter ×0.35) retained | Grep of current `simulation.ts` shows milk output driven solely by `lactationMonths` via `cowMilkKcal`/`eweMilkKcal`, gated by the §4.1/§4.3 breeding ages — D5's age bands no longer exist in code; D7 is present and compatible |
 | 2026-06-14 | §7.2 | Ale/draff: barley→ale/draff is a 50/50 kcal partition (37,500/37,500 of the 75,000 kcal/bu bread-grain value), not a lossy 6–12% conversion; draff is a new non-storable same-month animal-feed byproduct; brewing is continuous year-round; ale consumption runs up to 50% higher in winter (bounded by the decision-layer's annual ale-share target) | User-directed correction (R7): the prior volume-based derivation (7.5 gal/bu × ~100 kcal/pint ⇒ 6–12%) relied on ale's "debated" drinking-density figure; the partition framing accounts for all of the grain's energy (ale + draff), consistent with brewing being primarily a mass split with modest true fermentation loss |
 | 2026-06-14 | §7.4 | D1 (priority order) and D3 (15% meat kcal-share) confirmed as decision-layer/rationing parameters, out of scope for this document; §6.2/§7.2/§4.1+4.3 supply the physical ceilings those policies must respect | Same reasoning the user already accepted for D2 (ale-share %, "split it") applies symmetrically to D1/D3 — consumption ordering and %-of-kcal caps are rationing choices, not physical facts |
+| 2026-06-14 | §5.2.1 | Reference bodyweights AGREED: ox 500 / cow 400 / ram 55 / ewe 40 / wether 50 kg, anchored to living unimproved analogues at the medieval withers height (cattle ~110cm → Dexter 325–Highland 450; sheep 57–60cm → Shetland 35–45) | Replaces the prior "no medieval liveweight data found, ±15–20%" hand-wave with zooarchaeological-withers-height + living-analogue evidence; cow chosen at 400 (unimproved-leaning) over the 450 Highland-cow option |
+| 2026-06-14 | §5.2.2 | `WINTER_ACTIVITY_FACTOR = 2.5×BMR` validated, not guessed: measured suckler-cow maintenance ME = 0.596 MJ/kg⁰·⁷⁵/day ≈ 2.0×BMR thermoneutral, +20–30% cold-stress → ≈2.4–2.6×BMR | Upgrades the figure from "within a broad 2–5× range" to a match against measured maintenance-energy data for a real dry cow |
+| 2026-06-14 | §5.2.5/§5.2.6 | Option (a) adopted: replace the carried-over `feedNeedsWinter` with the bodyweight-derived rations (~half the kcal). Carried-over figures rejected on two independent grounds — 3× a real cow's thermoneutral maintenance, AND hay alone = 139% of a 400kg cow's physical gut-fill ceiling (un-eatable) | Carried-over figures were never derived from bodyweight; option (b) would require impossible ~850–1100kg cattle. Loosens the winter feed balance vs the current sim, which was tightened by an un-eatable-ration artifact |
+| 2026-06-14 | §5.1 | `strawKcalPerKgDM = 1,300` adopted (≈5.4 MJ/kg ≈ 60% of hay's ME), conservative low end of the cited 5.5–6.5 MJ/kg straw range | Well-grounded and uncontentious; decided directly rather than escalated |
+| 2026-06-14 | §5.3/§5.4 | Winter-grazing offset reworked from a flat hay-ration multiplier to a productivity-bounded, cold-costed mechanic: realized offset = min(class cap, animal's share of actual winter pasture growth); grazing animals incur a ×1.10 cold-exposure maintenance increment. Class caps: sheep/wethers/rams 1.0, dry cattle 0.30, working/lactating/late-pregnant 0. Supersedes the 2026-06-13 binary "100% normal / 0% deep winter" rule | User refinement: winter grazing is a *maximum* bounded by field productivity (already tracked via `WINTER_GRASS_GROWTH_RATE`, 0 in deep winter so the deep-winter→0 case becomes emergent) and is not free (cold exposure raises maintenance). Generalizes correctly to arbitrary winter length/severity and stocking density |
 | 2026-06-14 | §6.2 | Meat-product consumption cap derived: `(offal + ⅔ meat + ½ fat)/pop = 1304.9/90 ≈ 14.5 kg/person/month`, replacing the 12 kg placeholder (robust to ±2.5% over the weight-fraction band) | Now derived end-to-end from §4.9; the placeholder's closeness (12 vs 14.5) is a sanity check |
 
