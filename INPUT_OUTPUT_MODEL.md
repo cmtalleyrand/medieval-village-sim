@@ -1026,10 +1026,38 @@ hayRation_effective = max(0, maintenance_grazing − grazed_kcal) expressed in c
 
 | Parameter | Value | Status / basis |
 |---|---|---|
-| `WINTER_GRAZING_COLD_FACTOR` | **1.10** (a +10% maintenance increment while grazing out) | [PROPOSED] — "modest but non-zero" per the user; the housed-vs-unhoused difference in cold-stress load, on top of the §5.2.2 base which already includes general winter cold stress. Range 1.05–1.15, adjustable. |
+| `WINTER_GRAZING_COLD_FACTOR` | **1.20** (a +20% maintenance increment while grazing out) | [DERIVED] — see derivation below. |
 | `offsetCap_class` — sheep (ewe/wether/ram) | **1.0** (up to 100% of maintenance grazeable) | [AGREED] — sheep dig through snow to reach grass that cattle cannot ([Cornell Small Farms](https://smallfarms.cornell.edu/2015/01/considerations-for-winter-grazing-your-sheep/)); but realized only up to the pasture-supply bound in step 2. |
 | `offsetCap_class` — dry cattle (§5.4) | **0.30** | [AGREED] — see §5.4. |
 | `offsetCap_class` — working oxen/bulls, lactating/late-pregnant cows | **0** (housed, fully hay-fed, no cold increment) | [AGREED] — see §5.4. |
+
+**Derivation of `WINTER_GRAZING_COLD_FACTOR`**: the §5.2.2 housed baseline
+(2.5×BMR) is validated against the NRC cold-stress increment for a *sheltered*
+animal with a **dry** coat (~15–20% above thermoneutral maintenance, within
+the cited 20–30% NRC range). The same NRC framework, as summarized by
+[SD State Extension](https://extension.sdstate.edu/how-does-cold-stress-affect-energy-needs-cattle),
+gives a worked comparison at an effective temperature of 17°F: a cow with a
+**dry** winter coat needs ~15% more energy than under moderate conditions, but
+the *same* cow with a coat that is **wet or matted with mud** needs ~40% more —
+because a wet/muddy coat loses most of its insulating value. An animal sent
+out to graze in winter is exposed to precipitation, standing water, and mud
+that a housed animal in a byre is not, i.e. it shifts from the "dry coat"
+case toward the "wet coat" case at the *same* ambient conditions. The ratio of
+the wet-coat to dry-coat increments at that fixed effective temperature,
+1.40 / 1.15 ≈ 1.22, is therefore the **incremental energy cost of grazing
+outdoors versus being housed**, holding ambient temperature constant — i.e.
+exactly the quantity `WINTER_GRAZING_COLD_FACTOR` needs to represent.
+`WINTER_GRAZING_COLD_FACTOR = 1.20` adopts this ratio, rounded down slightly
+because sheep's wool sheds water more effectively than cattle hair
+([AHDB](https://ahdb.org.uk/news/managing-sheep-in-cold-weather),
+[OSU](https://u.osu.edu/sheep/2023/01/10/adjusting-feed-requirements-for-cold-weather/)),
+partially offsetting the fact that a wet wool coat raises a sheep's LCT far
+more dramatically (28°F dry → 59°F wet) and doubles its wind-chill TDN
+increment (1%/°F → 2%/°F below LCT) — i.e. sheep and cattle both show a
+"wet-vs-dry exposure roughly doubles the cold penalty" pattern, but via
+different mechanisms, and 1.20 sits as a single cross-species value
+consistent with both. Residual uncertainty ±~0.05 from the single 17°F
+reference point used for the cattle ratio.
 
 **Emergent consequences (why this is better than the binary rule)**: in deep
 winter, winter growth = 0 ⇒ `grazed_kcal = 0` ⇒ full hay ration applies
@@ -1067,7 +1095,7 @@ in the §5.3 mechanic:
 
 | Cattle state | `offsetCap_class` | Notes |
 |---|---|---|
-| Dry adult cow (multiplier tier ×1.0 — not pregnant ≥6mo, not lactating) | **0.30** | Goes out to grass; subject to the §5.3 pasture-supply bound and the ×1.10 cold factor. |
+| Dry adult cow (multiplier tier ×1.0 — not pregnant ≥6mo, not lactating) | **0.30** | Goes out to grass; subject to the §5.3 pasture-supply bound and the ×1.20 cold factor. |
 | Lactating or late-pregnant (≥6mo) cow; oxen/bulls (working) | **0** | Housed, fully hay-fed, no cold increment. |
 
 The **30%** cap is the user-confirmed **maximum** (not a guaranteed offset):
@@ -1403,6 +1431,7 @@ rationale) and for straw, wool, and cloth (currently zero/undocumented per
 | 2026-06-14 | §5.2.2 | `WINTER_ACTIVITY_FACTOR = 2.5×BMR` validated, not guessed: measured suckler-cow maintenance ME = 0.596 MJ/kg⁰·⁷⁵/day ≈ 2.0×BMR thermoneutral, +20–30% cold-stress → ≈2.4–2.6×BMR | Upgrades the figure from "within a broad 2–5× range" to a match against measured maintenance-energy data for a real dry cow |
 | 2026-06-14 | §5.2.5/§5.2.6 | Option (a) adopted: replace the carried-over `feedNeedsWinter` with the bodyweight-derived rations (~half the kcal). Carried-over figures rejected on two independent grounds — 3× a real cow's thermoneutral maintenance, AND hay alone = 139% of a 400kg cow's physical gut-fill ceiling (un-eatable) | Carried-over figures were never derived from bodyweight; option (b) would require impossible ~850–1100kg cattle. Loosens the winter feed balance vs the current sim, which was tightened by an un-eatable-ration artifact |
 | 2026-06-14 | §5.1 | `strawKcalPerKgDM = 1,300` adopted (≈5.4 MJ/kg ≈ 60% of hay's ME), conservative low end of the cited 5.5–6.5 MJ/kg straw range | Well-grounded and uncontentious; decided directly rather than escalated |
-| 2026-06-14 | §5.3/§5.4 | Winter-grazing offset reworked from a flat hay-ration multiplier to a productivity-bounded, cold-costed mechanic: realized offset = min(class cap, animal's share of actual winter pasture growth); grazing animals incur a ×1.10 cold-exposure maintenance increment. Class caps: sheep/wethers/rams 1.0, dry cattle 0.30, working/lactating/late-pregnant 0. Supersedes the 2026-06-13 binary "100% normal / 0% deep winter" rule | User refinement: winter grazing is a *maximum* bounded by field productivity (already tracked via `WINTER_GRASS_GROWTH_RATE`, 0 in deep winter so the deep-winter→0 case becomes emergent) and is not free (cold exposure raises maintenance). Generalizes correctly to arbitrary winter length/severity and stocking density |
+| 2026-06-14 | §5.3/§5.4 | Winter-grazing offset reworked from a flat hay-ration multiplier to a productivity-bounded, cold-costed mechanic: realized offset = min(class cap, animal's share of actual winter pasture growth); grazing animals incur a ×1.20 cold-exposure maintenance increment. Class caps: sheep/wethers/rams 1.0, dry cattle 0.30, working/lactating/late-pregnant 0. Supersedes the 2026-06-13 binary "100% normal / 0% deep winter" rule | User refinement: winter grazing is a *maximum* bounded by field productivity (already tracked via `WINTER_GRASS_GROWTH_RATE`, 0 in deep winter so the deep-winter→0 case becomes emergent) and is not free (cold exposure raises maintenance). Generalizes correctly to arbitrary winter length/severity and stocking density |
+| 2026-06-14 | §5.3 | `WINTER_GRAZING_COLD_FACTOR` changed from [PROPOSED] 1.10 (no citation) to [DERIVED] 1.20, via the ratio of NRC wet-coat to dry-coat cold-stress increments at a fixed effective temperature (1.40/1.15 ≈ 1.22, rounded to 1.20) | Prior 1.10 had zero evidentiary basis (user flag); SD State Extension's worked NRC example gives a defensible, citable exposure differential between a housed (dry-coat) and grazing (wet/muddy-coat) animal at the same ambient temperature |
 | 2026-06-14 | §6.2 | Meat-product consumption cap derived: `(offal + ⅔ meat + ½ fat)/pop = 1304.9/90 ≈ 14.5 kg/person/month`, replacing the 12 kg placeholder (robust to ±2.5% over the weight-fraction band) | Now derived end-to-end from §4.9; the placeholder's closeness (12 vs 14.5) is a sanity check |
 
