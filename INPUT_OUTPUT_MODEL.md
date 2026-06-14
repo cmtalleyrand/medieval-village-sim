@@ -1169,7 +1169,7 @@ Temporary arable pasture (arable land under a grass/ley course rather than perma
 
 ---
 
-## 6. Animal Products — Chain scope [AGREED], values PENDING
+## 6. Animal Products — Chain scope [AGREED], conversions [DERIVED]
 
 ### 6.1 Chain scope — [AGREED]
 
