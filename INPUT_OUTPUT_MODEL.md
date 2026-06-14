@@ -715,24 +715,42 @@ not optimistic.) Old-age-cull animals take the full Pals weight (frac = 1.0).
 #### 4.9.5 Yields and steady-state totals (Pals zooarchaeological factors)
 
 Per-animal yields ([J.P. Pals](#), via user): cow 250kg → 65 meat / 31 offal /
-25 fat (kg); sheep 30kg → 7.8 / 3.75 / 3.0. Young animals yield `frac ×` these.
+25 fat (kg) — i.e. the meat+offal+fat = 48% of liveweight (the other ~52% is
+bone, hide, horn, hoof, tendon, blood and gut-fill, removed at slaughter);
+**bulls/oxen 300kg → 78 / 37.2 / 30** (the cow's 26%/12.4%/10% liveweight
+fractions applied to the heavier male bodyweight — males weighed more than
+cows, per user direction 2026-06-14); sheep 30kg → 7.8 / 3.75 / 3.0. Young
+animals yield `frac ×` these.
+
+The cattle cull splits by sex: of the 14.30 young culls, 7.60 F / 6.70 M
+(§4.9.2); of the 9.11 old-age culls, 4.09 F / 5.02 M (split by the
+cow:ox replacement-need ratio 4.00:4.91). Full-weight-equivalent animals:
+**6.14 cows** (= 7.60×0.27 + 4.09) and **6.83 bulls/oxen** (= 6.70×0.27 + 5.02).
 
 | | Meat (kg) | Offal (kg) | Fat (kg) |
 |---|---|---|---|
-| Cattle (14.30 young @0.27 + 9.11 full) | 843.4 | 402.2 | 324.4 |
-| Sheep (1.63 young @0.48 + 16.27 full) | 133.0 | 63.9 | 51.2 |
-| **Total annual cull** | **976.4** | **466.2** | **375.5** |
+| Cattle — cows @250kg (6.14 full-equiv) | 399.2 | 190.4 | 153.6 |
+| Cattle — bulls/oxen @300kg (6.83 full-equiv) | 532.7 | 254.0 | 204.9 |
+| Sheep (1.63 young @0.48 + 16.27 full, 30kg) | 133.0 | 63.9 | 51.2 |
+| **Total annual cull** | **1064.9** | **508.3** | **409.7** |
 
 #### 4.9.6 Residual uncertainties — [flagged]
 
 - **Single biggest lever is the old-age cull headcount**, not the young weight:
   the surplus-young cohort is culled so light that the YOUNG_FRAC band
   (cattle 0.25–0.30, sheep 0.43–0.52) moves the §6.2 cap by only ±2.5%.
-- The Pals factors are tied to a 250kg "average cow"; §5.2.1 uses a 400kg cow /
-  500kg ox for *feed* purposes. The two serve different roles (yield vs.
-  intake) but the size mismatch is noted for a future reconciliation pass.
-- A single Pals cow factor is applied to both sexes of cattle (no separate
-  ox/bull yield was given).
+- **[RESOLVED 2026-06-14]** Bulls/oxen are now yielded at **300kg** (cows at
+  **250kg**), per user direction that males weighed more than cows — replacing
+  the prior single-cow-factor-for-both-sexes simplification. The 48% usable
+  fraction (meat/offal/fat of liveweight) is unchanged; only the male
+  bodyweight anchor was raised (×1.2).
+- **Remaining inconsistency flagged for future reconciliation**: §5.2.1's
+  *feed* bodyweights (cow 400kg / ox 500kg) and §4.9.5's *yield* liveweights
+  (cow 250kg / bull-ox 300kg) describe the **same animals** at different
+  weights. This is a genuine internal inconsistency (a cow has one liveweight),
+  not merely "different statistics," and should be unified when feed and yield
+  are reconciled — the medieval-cattle-liveweight literature spans ~250–400kg.
+  Logged, not resolved here, per user direction to proceed.
 
 ---
 
@@ -1026,38 +1044,48 @@ hayRation_effective = max(0, maintenance_grazing − grazed_kcal) expressed in c
 
 | Parameter | Value | Status / basis |
 |---|---|---|
-| `WINTER_GRAZING_COLD_FACTOR` | **1.20** (a +20% maintenance increment while grazing out) | [DERIVED] — see derivation below. |
+| `WINTER_GRAZING_COLD_FACTOR` | **[PENDING — user decision], range 1.00–1.22** | [PENDING] — corrected derivation below; point value awaiting user choice of the English-winter wetness assumption. |
 | `offsetCap_class` — sheep (ewe/wether/ram) | **1.0** (up to 100% of maintenance grazeable) | [AGREED] — sheep dig through snow to reach grass that cattle cannot ([Cornell Small Farms](https://smallfarms.cornell.edu/2015/01/considerations-for-winter-grazing-your-sheep/)); but realized only up to the pasture-supply bound in step 2. |
 | `offsetCap_class` — dry cattle (§5.4) | **0.30** | [AGREED] — see §5.4. |
 | `offsetCap_class` — working oxen/bulls, lactating/late-pregnant cows | **0** (housed, fully hay-fed, no cold increment) | [AGREED] — see §5.4. |
 
-**Derivation of `WINTER_GRAZING_COLD_FACTOR`**: the §5.2.2 housed baseline
-(2.5×BMR) is validated against the NRC cold-stress increment for a *sheltered*
-animal with a **dry** coat (~15–20% above thermoneutral maintenance, within
-the cited 20–30% NRC range). The same NRC framework, as summarized by
-[SD State Extension](https://extension.sdstate.edu/how-does-cold-stress-affect-energy-needs-cattle),
-gives a worked comparison at an effective temperature of 17°F: a cow with a
-**dry** winter coat needs ~15% more energy than under moderate conditions, but
-the *same* cow with a coat that is **wet or matted with mud** needs ~40% more —
-because a wet/muddy coat loses most of its insulating value. An animal sent
-out to graze in winter is exposed to precipitation, standing water, and mud
-that a housed animal in a byre is not, i.e. it shifts from the "dry coat"
-case toward the "wet coat" case at the *same* ambient conditions. The ratio of
-the wet-coat to dry-coat increments at that fixed effective temperature,
-1.40 / 1.15 ≈ 1.22, is therefore the **incremental energy cost of grazing
-outdoors versus being housed**, holding ambient temperature constant — i.e.
-exactly the quantity `WINTER_GRAZING_COLD_FACTOR` needs to represent.
-`WINTER_GRAZING_COLD_FACTOR = 1.20` adopts this ratio, rounded down slightly
-because sheep's wool sheds water more effectively than cattle hair
-([AHDB](https://ahdb.org.uk/news/managing-sheep-in-cold-weather),
+**Derivation of `WINTER_GRAZING_COLD_FACTOR` — [PENDING]**. The physical
+mechanism is the **coat-insulation Lower Critical Temperature (LCT)**, from the
+NRC framework ([SD State Extension](https://extension.sdstate.edu/how-does-cold-stress-affect-energy-needs-cattle),
+[NRC *Effect of Environment*](https://www.ncbi.nlm.nih.gov/books/NBK232316/)):
+maintenance rises ~1%/°F that effective temperature falls below LCT, and LCT
+is set by the coat:
+
+- **Dry winter coat, sheltered** (≈ a housed byre animal): LCT ≈ **18°F**.
+- **Wet / mud-matted coat** (≈ an exposed grazing animal): LCT ≈ **59°F** — a
+  soaked coat loses most of its insulation, so cold stress begins at a far
+  *milder* ambient temperature.
+
+A typical English lowland winter day sits around **35–45°F**. At those temps a
+**dry, sheltered** animal is *above* its 18°F LCT ⇒ **~0% cold increment**,
+while a **soaked, exposed** animal is ~15–24°F below its 59°F LCT ⇒
+**~+15–24%**. So the housed-vs-grazing differential is driven not by hard
+freezes but by **whether the grazing animal is wet** — and the point value
+therefore depends on how wet a typical English grazing winter is assumed to
+be:
+
+- **~1.20** — exposed stock are wet/muddy most of the winter (full wet-coat
+  penalty; England is wet).
+- **~1.08–1.15** — weather-averaged over a mix of soaked days and dry-cold
+  days.
+- **~1.00–1.05** — coats stay mostly dry; only a small wind-chill increment
+  over a sheltered animal.
+
+(The earlier draft of this section anchored the ratio to NRC's single *17°F*
+worked example — an atypical hard freeze, not a representative English winter
+temperature — and is **withdrawn**; the LCT/coat mechanism above, which
+applies across the realistic 35–45°F range, is the correct basis.) Sheep show
+the same pattern via wool (dry 2.5″ wool LCT 28°F → wet 59°F; wind-chill
+increment doubles 1%/°F→2%/°F — [AHDB](https://ahdb.org.uk/news/managing-sheep-in-cold-weather),
 [OSU](https://u.osu.edu/sheep/2023/01/10/adjusting-feed-requirements-for-cold-weather/)),
-partially offsetting the fact that a wet wool coat raises a sheep's LCT far
-more dramatically (28°F dry → 59°F wet) and doubles its wind-chill TDN
-increment (1%/°F → 2%/°F below LCT) — i.e. sheep and cattle both show a
-"wet-vs-dry exposure roughly doubles the cold penalty" pattern, but via
-different mechanisms, and 1.20 sits as a single cross-species value
-consistent with both. Residual uncertainty ±~0.05 from the single 17°F
-reference point used for the cattle ratio.
+though wool sheds water better, so sheep reach the wet-coat case less readily
+than cattle. **The single point value within 1.00–1.22 is a user decision**
+(wetness assumption), not yet set.
 
 **Emergent consequences (why this is better than the binary rule)**: in deep
 winter, winter growth = 0 ⇒ `grazed_kcal = 0` ⇒ full hay ration applies
@@ -1095,7 +1123,7 @@ in the §5.3 mechanic:
 
 | Cattle state | `offsetCap_class` | Notes |
 |---|---|---|
-| Dry adult cow (multiplier tier ×1.0 — not pregnant ≥6mo, not lactating) | **0.30** | Goes out to grass; subject to the §5.3 pasture-supply bound and the ×1.20 cold factor. |
+| Dry adult cow (multiplier tier ×1.0 — not pregnant ≥6mo, not lactating) | **0.30** | Goes out to grass; subject to the §5.3 pasture-supply bound and the §5.3 cold factor (`WINTER_GRAZING_COLD_FACTOR`, value [PENDING]). |
 | Lactating or late-pregnant (≥6mo) cow; oxen/bulls (working) | **0** | Housed, fully hay-fed, no cold increment. |
 
 The **30%** cap is the user-confirmed **maximum** (not a guaranteed offset):
@@ -1153,12 +1181,12 @@ cap_value          = offal_kg + (2/3)·meat_kg + (1/2)·fat_kg
 mealCap_per_capita = cap_value / population
 ```
 
-Applying the §4.9.5 steady-state cull totals (meat 976.4, offal 466.2, fat
-375.5 kg) for the standard village (pop 90):
+Applying the §4.9.5 steady-state cull totals (meat 1064.9, offal 508.3, fat
+409.7 kg) for the standard village (pop 90):
 
 ```
-cap_value          = 466.2 + (2/3)·976.4 + (1/2)·375.5 = 1304.9 kg
-mealCap_per_capita = 1304.9 / 90 ≈ 14.5 kg / person / month
+cap_value          = 508.3 + (2/3)·1064.9 + (1/2)·409.7 = 1423.1 kg
+mealCap_per_capita = 1423.1 / 90 ≈ 15.8 kg / person / month
 ```
 
 This is a solver-layer ceiling: no more than `mealCap_per_capita × population`
@@ -1166,11 +1194,15 @@ kg of meat-product (meat + the fat fraction bound to it, see below) may be
 *consumed* in a single month, regardless of how much is in store. It is **not**
 a statement of total annual production. The `⅔ meat / ½ fat` weighting reflects
 the preservation/binding rules below (only part of each can be stored or
-separated). **14.5 kg/person/month replaces the prior 12 kg placeholder** and
-is now derived end-to-end from §4.9; the figure is robust to ±2.5% across the
-full §4.9.4 weight-fraction band (14.2–14.9 kg). The closeness of the
-independently-chosen 12 kg placeholder to the derived 14.5 kg is a sanity
-check, not a coincidence to rely on.
+separated). **15.8 kg/person/month** is derived end-to-end from §4.9 (cull
+yields anchored to cow 250kg / bull-ox 300kg liveweights, §4.9.5); the figure
+is robust to ±2.5% across the full §4.9.4 weight-fraction band (~15.4–16.2 kg).
+This is a *consumption ceiling* (~0.52 kg/person/day of meat+offal+fat), above
+a typical medieval person's *average* intake (e.g. late-medieval Barcelona
+~0.35 kg/day, [Medievalists.net](https://www.medievalists.net/2020/11/medieval-europeans-meat-consumption/)),
+which is correct for a ceiling. It supersedes the earlier 14.5/12 figures
+(which used a uniform 250kg cattle weight; the bull/ox uplift to 300kg raises
+it modestly).
 
 **Preservation rules — [AGREED]** (apply to the cull's meat/offal/fat output):
 
@@ -1712,7 +1744,8 @@ are **superseded** by the straw/wool rows above (R7).
 | 2026-06-14 | §5.2.5/§5.2.6 | Option (a) adopted: replace the carried-over `feedNeedsWinter` with the bodyweight-derived rations (~half the kcal). Carried-over figures rejected on two independent grounds — 3× a real cow's thermoneutral maintenance, AND hay alone = 139% of a 400kg cow's physical gut-fill ceiling (un-eatable) | Carried-over figures were never derived from bodyweight; option (b) would require impossible ~850–1100kg cattle. Loosens the winter feed balance vs the current sim, which was tightened by an un-eatable-ration artifact |
 | 2026-06-14 | §5.1 | `strawKcalPerKgDM = 1,300` adopted (≈5.4 MJ/kg ≈ 60% of hay's ME), conservative low end of the cited 5.5–6.5 MJ/kg straw range | Well-grounded and uncontentious; decided directly rather than escalated |
 | 2026-06-14 | §5.3/§5.4 | Winter-grazing offset reworked from a flat hay-ration multiplier to a productivity-bounded, cold-costed mechanic: realized offset = min(class cap, animal's share of actual winter pasture growth); grazing animals incur a ×1.20 cold-exposure maintenance increment. Class caps: sheep/wethers/rams 1.0, dry cattle 0.30, working/lactating/late-pregnant 0. Supersedes the 2026-06-13 binary "100% normal / 0% deep winter" rule | User refinement: winter grazing is a *maximum* bounded by field productivity (already tracked via `WINTER_GRASS_GROWTH_RATE`, 0 in deep winter so the deep-winter→0 case becomes emergent) and is not free (cold exposure raises maintenance). Generalizes correctly to arbitrary winter length/severity and stocking density |
-| 2026-06-14 | §5.3 | `WINTER_GRAZING_COLD_FACTOR` changed from [PROPOSED] 1.10 (no citation) to [DERIVED] 1.20, via the ratio of NRC wet-coat to dry-coat cold-stress increments at a fixed effective temperature (1.40/1.15 ≈ 1.22, rounded to 1.20) | Prior 1.10 had zero evidentiary basis (user flag); SD State Extension's worked NRC example gives a defensible, citable exposure differential between a housed (dry-coat) and grazing (wet/muddy-coat) animal at the same ambient temperature |
+| 2026-06-14 | §5.3 | `WINTER_GRAZING_COLD_FACTOR` 1.20 [DERIVED] **withdrawn** — its derivation was anchored to NRC's 17°F worked example, an atypical hard freeze, not a representative English winter (35–45°F). Re-stated as [PENDING — user decision] over range 1.00–1.22, driven by the coat-LCT mechanism (wet exposed coat LCT 59°F vs dry sheltered coat LCT 18°F) and the assumed English-winter wetness | User flag: 17°F is not typical. Point value is a genuine modeling judgment (wetness assumption) the user must make; not set on their behalf |
+| 2026-06-14 | §4.9.5/§4.9.6/§6.2 | Bull/ox cull yield bodyweight raised to 300kg (cows kept at 250kg), per user direction that males weighed more. Pals 48% usable fraction unchanged; male factors ×1.2 → 78/37.2/30 kg. Cattle+sheep cull totals → meat 1064.9 / offal 508.3 / fat 409.7 kg; §6.2 consumption cap → **15.8 kg/person/month** (was 14.5). Feed-weight (§5.2.1: 400/500) vs yield-weight (250/300) inconsistency logged for future reconciliation | User decision; resolves the single-cow-factor-for-both-sexes simplification. The same-animal weight mismatch between feed and yield sides remains a genuine open inconsistency, flagged not resolved |
 | 2026-06-14 | §6.2 | Meat-product consumption cap derived: `(offal + ⅔ meat + ½ fat)/pop = 1304.9/90 ≈ 14.5 kg/person/month`, replacing the 12 kg placeholder (robust to ±2.5% over the weight-fraction band) | Now derived end-to-end from §4.9; the placeholder's closeness (12 vs 14.5) is a sanity check |
 | 2026-06-14 | §8.1 | Cartload ≈ 250 kg adopted for fuel (reusing `cartloadToKgHay`'s value), derived independently from the historical "load of unhewn wood" (0.755 m³ stacked) × 50–65% solid fraction × 500–700 kg/m³ UK hardwood density ≈ 260 kg | Convergence with the existing hay figure (250 kg) supports treating "cartload" as a roughly material-independent, weight-limited cart-capacity unit; no new parameter needed |
 | 2026-06-14 | §8.2 | `fuelYieldPerAcre = 1.5` cartloads/acre/yr (≈375 kg/acre, ≈30% of the 5 cartloads/acre/yr intensive-coppice ceiling) confirmed as-is for `woodlandAcres` = multi-use "woodland/commons" (estovers + grazing rights, pollarding not coppicing); `G/12` growing-season scaling (F1) confirmed as the correct generalization, by analogy to §2/§5.5 growth-season scaling | "Commons" framing in `defaults.ts` implies shared, lower-intensity use than dedicated enclosed coppice — 30% of the intensive ceiling is the physically appropriate range, not a shortfall |
