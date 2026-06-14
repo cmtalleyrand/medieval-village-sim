@@ -1348,12 +1348,170 @@ model's specification once it exists.
 
 ---
 
-## 8. Fuel — PENDING
+## 8. Fuel
 
-Candidate starting points exist (`[CARRIED OVER]`, not yet ratified):
-woodland fuel yield per acre, per-household fuel demand by season
-(summer/winter/deep-winter cartloads/month), fuel energy content / cartload
-definition, non-spoiling storage (`defaults.ts`, `ASSUMPTIONS.md` §1.7).
+### 8.1 Cartload definition — [DERIVED]
+
+The model tracks fuel in "cartloads" (`fuelStocks`, `fuelYieldPerAcre`,
+`fuelNeedsSummer/Winter/DeepWinter`) but, unlike hay (`cartloadToKgHay = 250`),
+has no explicit weight conversion for fuel. A genuine physical figure can be
+derived from the historical English "load" of wood:
+
+- A **"load of unhewn (roundwood) wood"** was a recognised English unit equal
+  to 1⅔ cord-feet ≈ 26⅔ cubic feet ≈ **0.755 m³** of *stacked* volume
+  ([Load (unit), Wikipedia](https://en.wikipedia.org/wiki/Load_(unit))). This
+  is the natural historical referent for a cart's load of firewood — "as much
+  as could be conveyed in a cart with one horse."
+- Stacked roundwood (irregular branches/poles, not split billets) is roughly
+  **50–65% solid wood by volume**, the rest air gaps — a standard range in
+  firewood/cordwood literature. Midpoint ≈ 0.575 → solid wood per cartload ≈
+  0.755 × 0.575 ≈ **0.43 m³**.
+- Air-dried (seasoned, ~20% moisture content) UK hardwood density is
+  typically **500–700 kg/m³** (practical estimate for an unknown species mix —
+  [Century Wood](https://centurywood.uk/2020/12/29/firewood-numbers/),
+  [EngineeringToolbox](https://www.engineeringtoolbox.com/wood-density-d_40.html),
+  [Wooduweigh](https://www.wooduweigh.com/cubic-metre-wood-weight-calculator/)).
+  Midpoint ≈ 600 kg/m³, appropriate for the mixed oak/ash/hazel/elm coppice
+  and pollard species typical of medieval English woodland.
+- **Mass per cartload ≈ 0.43 m³ × 600 kg/m³ ≈ 260 kg.**
+
+This lands within ~5% of the model's existing `cartloadToKgHay = 250`,
+despite being derived independently for a completely different material
+(stacked roundwood vs. baled/loose hay). That convergence is not a
+coincidence: a cart's load limit is set by the draft animal's pulling
+capacity (a **weight** limit), not by the material's bulk density, so a
+roughly material-independent "**cartload ≈ 250 kg**" is physically sensible
+as the model's general cart-capacity unit. **Adopted**: fuel cartloads use the
+same ≈250 kg figure as `cartloadToKgHay` (no new parameter needed; if a future
+batch needs an explicit fuel-energy currency, `cartloadToKgFuel = 250` can
+alias `cartloadToKgHay`).
+
+### 8.2 Woodland fuel yield per acre — [AGREED, ceiling identified]
+
+`fuelYieldPerAcre = 1.5` cartloads/acre/year ≈ 375 kg/acre/year (nominal,
+before the §8.2.1 growing-season scaling below).
+
+**Comparison ceiling**: a well-stocked, intensively-managed mixed-broadleaf
+**coppice** yields roughly 3 tonnes air-dried wood/hectare/year ≈ **1.25
+tons/acre/year ≈ 5 cartloads/acre/year**
+([ScienceDirect — Coppicing](https://www.sciencedirect.com/topics/agricultural-and-biological-sciences/coppicing),
+[Treeplantation — Coppicing guide](https://treeplantation.com/coppicing)).
+The model's 1.5 cartloads/acre/year is **~30% of this dedicated-coppice
+ceiling**.
+
+That gap is consistent with what `woodlandAcres` actually represents.
+`defaults.ts` labels it **"woodland/commons"** — and medieval English commons
+were characteristically **multi-use**: villagers held simultaneous rights to
+graze livestock (pasture), gather fallen wood and prunings for fuel
+(**estovers**), and pasture pigs (pannage) on the same ground
+([Woodpasture, heathland and common rights](https://www.mercian-as.co.uk/commonrights.html),
+[Medieval Wood Pasture — RuralHistoria](https://ruralhistoria.com/2023/11/12/medieval-wood-pasture-what-is-it/),
+[Common land — CAMPOP](https://www.campop.geog.cam.ac.uk/blog/2025/02/06/common-land/)).
+Grazed wood-pasture used **pollarding** rather than coppicing — trees were cut
+above browsing height and regrew more slowly than protected coppice stools,
+because dedicated coppice required fencing livestock *out* during regrowth,
+which is incompatible with simultaneous grazing rights. A multi-use
+wood-pasture/common therefore produces durably less fuel per acre than a
+fenced, single-purpose coppice — **30% of the intensive-coppice ceiling is a
+defensible figure for shared estovers-and-grazing common land**, and is
+adopted as-is. (The 5 cartloads/acre/year figure remains useful as the
+*upper bound* if a future scenario models a dedicated, enclosed coppice
+instead of common wood-pasture — a land-use choice, not a physical constant.)
+
+#### 8.2.1 Growing-season scaling (F1) — [AGREED]
+
+`woodlandFuelYield = woodlandAcres × fuelYieldPerAcre × (growingMonths / 12)`
+(`simulation.ts` — `woodlandFuelYield`). Coppice/pollard regrowth is wood
+*biomass growth*, which — like crop and grass growth elsewhere in this model —
+occurs during the growing season. A shorter growing season (`G < 12`)
+therefore produces proportionally less annual increment, exactly as it does
+for §2's crops and §5.5's pasture. Scaling the annual yield figure by `G/12`
+is the correct generalization to arbitrary `G`, consistent with the rest of
+the model's season-type architecture. No separate citation needed beyond the
+general growth-season principle already established for §2/§5.
+
+### 8.3 Household fuel needs (summer/winter/deep-winter) — [AGREED]
+
+**Per-capita benchmark**: subsistence firewood-consumption estimates
+(ethnographic analogy, early-modern archival data) for pre-industrial Europe
+range from **roughly 1–2 m³ solid wood per person per year**
+([Intensive woodland management in the Middle Ages, PMC](https://pmc.ncbi.nlm.nih.gov/articles/PMC5424077/)).
+At §8.1's ≈600 kg/m³ solid-wood density, that is **≈0.6–1.2 tons/person/year**.
+
+**Model total**: with defaults (`G=9`, `W=3`, all 3 winter months classify as
+plain `winter` — `winterMonths < 6` means no `deep_winter` core, per
+`classifyWinterMonth`):
+
+```
+summer:  fuelNeedsSummer (0.5/mo) × G (9)  =  4.5 cartloads
+winter:  fuelNeedsWinter (1.5/mo) × W (3)  =  4.5 cartloads
+                                     total  =  9.0 cartloads/household/year
+                                            ≈ 2.25 tons/household/year
+```
+
+`peoplePerHH = {male:1, female:1, child:2.5}` → 4.5 people/household →
+**≈0.5 tons/person/year ≈ 0.83 m³/person/year** (at 600 kg/m³).
+
+This sits just **below** the 1–2 m³/person benchmark's low end. Two reasons
+this is appropriate rather than a shortfall:
+
+1. The benchmark range spans **Mediterranean to northern-European** climates;
+   England is colder than the low end of that range's source climates, which
+   would argue for *more* fuel — but
+2. **F3 (free summer fuel, §8.4)** means the tracked total *understates* true
+   consumption: actual summer cooking fuel is gathered "for free" outside this
+   ledger, so total physical wood use is somewhat higher than 0.83 m³/person —
+   bringing it closer to the middle of the 1–2 m³ band once untracked summer
+   gathering is included.
+
+**Seasonal shape**: winter need (1.5 cartloads/month, heating + cooking) is
+**3× summer need** (0.5 cartloads/month, cooking only) — directionally
+correct, since space heating (absent in summer) is the dominant winter fuel
+use. `fuelNeedsDeepWinter = 2.0` is **+33% over normal winter**, for the
+colder core of long winters (`W ≥ 6`, per `classifyWinterMonth`) — directionally
+consistent with fuel need scaling with heating degree-days (more severe cold
+→ proportionally more heating fuel), the same physical driver behind §5.3's
+cold-exposure increment for animals, though humans partially offset cold via
+clothing (§1.8, W2's winter-doubling) rather than pure metabolic increase.
+**Adopted as-is** — directionally sound, within the plausible band, no
+unsupported multiplier introduced.
+
+### 8.4 Free summer fuel (F3) — [AGREED]
+
+A manorial tenant gathering fallen branches and deadwood could collect on the
+order of **250 kg in a good day**, representing roughly **1,000 kWh** of
+thermal energy
+([Thundersaid Energy — Wood fuel history](https://thundersaidenergy.com/downloads/energy-history-how-much-wood-can-be-cut-in-a-day/)).
+The summer cooking-only need is 0.5 cartloads/month ≈ 125 kg/month — **under
+half a single day's casual gathering**. F3's framing — that hedgerow scraps,
+fallen wood, and dung casually collected through the growing season are
+sufficient for non-winter cooking without drawing on the managed
+woodland/commons allocation (§8.2) — is therefore physically realistic, not
+merely a bookkeeping convenience. **Confirmed as-is.**
+
+### 8.5 No fuel spoilage (F5) — [AGREED]
+
+Seasoned firewood is dimensionally and energetically stable across a single
+annual storage cycle (the entire premise of "seasoning" wood is that, once
+dried to equilibrium moisture content, it does not degrade further in normal
+dry storage). Unlike grain (§9, spoilage from pests/damp) or hay (§9, mould),
+there is no comparable physical decay mode operating on the relevant
+timescale. **No spoilage rate required — confirmed as-is.**
+
+### 8.6 Fuel-shortage response (F4/D9) — decision-layer, out of scope here
+
+The *physical* I/O of this section ends at: fuel produced (§8.2,
+`woodlandFuelYield`) vs. fuel consumed (§8.3, household need by season). A
+shortfall (`fuelNeeded > fuelStocks`) is itself a physical quantity and stays
+in scope. **What happens as a result of a shortfall** — raising the affected
+households' caloric requirement to model "burning more food-energy to stay
+warm" (`F4`/`D9`, up to +30% winter / +10% summer) — is a **behavioral
+rationing response**, not a physical conversion, and belongs in the
+decision-layer per the §0.1 scope split (the same treatment given to D1/D3 in
+§7.4). `ASSUMPTIONS.md` G10 already flags an implementation issue with this
+mechanic (the uplift is computed on the full baseline rather than the
+remaining deficit) — that is a simulation-mechanic bug for a future batch, not
+a physical-model question, and is noted here only for completeness.
 
 ---
 
@@ -1434,4 +1592,9 @@ rationale) and for straw, wool, and cloth (currently zero/undocumented per
 | 2026-06-14 | §5.3/§5.4 | Winter-grazing offset reworked from a flat hay-ration multiplier to a productivity-bounded, cold-costed mechanic: realized offset = min(class cap, animal's share of actual winter pasture growth); grazing animals incur a ×1.20 cold-exposure maintenance increment. Class caps: sheep/wethers/rams 1.0, dry cattle 0.30, working/lactating/late-pregnant 0. Supersedes the 2026-06-13 binary "100% normal / 0% deep winter" rule | User refinement: winter grazing is a *maximum* bounded by field productivity (already tracked via `WINTER_GRASS_GROWTH_RATE`, 0 in deep winter so the deep-winter→0 case becomes emergent) and is not free (cold exposure raises maintenance). Generalizes correctly to arbitrary winter length/severity and stocking density |
 | 2026-06-14 | §5.3 | `WINTER_GRAZING_COLD_FACTOR` changed from [PROPOSED] 1.10 (no citation) to [DERIVED] 1.20, via the ratio of NRC wet-coat to dry-coat cold-stress increments at a fixed effective temperature (1.40/1.15 ≈ 1.22, rounded to 1.20) | Prior 1.10 had zero evidentiary basis (user flag); SD State Extension's worked NRC example gives a defensible, citable exposure differential between a housed (dry-coat) and grazing (wet/muddy-coat) animal at the same ambient temperature |
 | 2026-06-14 | §6.2 | Meat-product consumption cap derived: `(offal + ⅔ meat + ½ fat)/pop = 1304.9/90 ≈ 14.5 kg/person/month`, replacing the 12 kg placeholder (robust to ±2.5% over the weight-fraction band) | Now derived end-to-end from §4.9; the placeholder's closeness (12 vs 14.5) is a sanity check |
+| 2026-06-14 | §8.1 | Cartload ≈ 250 kg adopted for fuel (reusing `cartloadToKgHay`'s value), derived independently from the historical "load of unhewn wood" (0.755 m³ stacked) × 50–65% solid fraction × 500–700 kg/m³ UK hardwood density ≈ 260 kg | Convergence with the existing hay figure (250 kg) supports treating "cartload" as a roughly material-independent, weight-limited cart-capacity unit; no new parameter needed |
+| 2026-06-14 | §8.2 | `fuelYieldPerAcre = 1.5` cartloads/acre/yr (≈375 kg/acre, ≈30% of the 5 cartloads/acre/yr intensive-coppice ceiling) confirmed as-is for `woodlandAcres` = multi-use "woodland/commons" (estovers + grazing rights, pollarding not coppicing); `G/12` growing-season scaling (F1) confirmed as the correct generalization, by analogy to §2/§5.5 growth-season scaling | "Commons" framing in `defaults.ts` implies shared, lower-intensity use than dedicated enclosed coppice — 30% of the intensive ceiling is the physically appropriate range, not a shortfall |
+| 2026-06-14 | §8.3 | `fuelNeedsSummer/Winter/DeepWinter` (0.5/1.5/2.0 cartloads/household/month) confirmed as-is: total 9 cartloads/household/yr ≈ 0.83 m³/person/yr, just below the 1–2 m³/person/yr pre-industrial benchmark — gap explained by F3's untracked free summer gathering; winter:summer 3:1 ratio and deep-winter +33% are directionally consistent with heating degree-day scaling | Within the cited benchmark band once untracked summer fuel is accounted for; no unsupported multiplier introduced |
+| 2026-06-14 | §8.4/8.5 | F3 (free summer fuel) and F5 (no fuel spoilage) confirmed as-is — F3 validated against a ~250kg/day casual-gathering benchmark (≈2x the entire monthly summer need in one day); F5 is physically uncontroversial for seasoned wood | Both well-grounded and uncontentious; decided directly rather than escalated |
+| 2026-06-14 | §8.6 | Fuel-shortage caloric-penalty response (F4/D9) classified as decision-layer (behavioral rationing response to a physical shortfall), out of scope for this document, per the §0.1 split already applied to D1/D3 in §7.4 | Consistent scope treatment; G10's implementation bug noted but left for a future batch |
 
