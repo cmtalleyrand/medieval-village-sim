@@ -527,7 +527,7 @@ shoulder-winter months, mirroring the existing `deepWinterFeedMultiplier`
 levels carry no deep-winter-specific evidence); flagged for the user if a
 harsher deep-winter core is wanted.
 
-### 4.8 Reproduction model — monthly conception, seasonality & exposure — [PROPOSED]
+### 4.8 Reproduction model — monthly conception, seasonality & exposure — [AGREED]
 
 **Supersedes** the current rigid model (`COW_MIN_CYCLE`/`EWE_MIN_CYCLE = 12mo`
 hard annual gates, with conception/calving/lambing gated to `!isWinter`).
@@ -588,9 +588,9 @@ rigid annual gate. (The earlier undiscounted ≈55% / ≈75% figures, taken at
 face value, implied a biologically impossible >1 birth/female/year; that error
 is corrected here.)
 
-#### 4.8.2 Male service-capacity cap — [PROPOSED]
+#### 4.8.2 Male service-capacity cap — [AGREED]
 
-| Species | Capacity cited in literature | `maxConceptionsPerMalePerMonth` [PROPOSED] | Current ratio (`bullsPerCow=1/12`, `ewesPerRam≈40`) | Binding? |
+| Species | Capacity cited in literature | `maxConceptionsPerMalePerMonth` [AGREED] | Current ratio (`bullsPerCow=1/12`, `ewesPerRam≈40`) | Binding? |
 |---|---|---|---|---|
 | Cattle (bull) | ~25–35 cows/60–70-day season ≈ 11–17.5/month | **12** | 12 cows/bull | At the boundary — not binding at expected ≈55% conception rate (≈6.6 actual conceptions/month/bull) |
 | Sheep (ram) | ≥5 ewes/day ⇒ up to ~150/34-day season | **40** | 40 ewes/ram | Not binding (40 ≪ 150) |
@@ -607,7 +607,7 @@ disproportionately (e.g. heavy culling), at which point it would
 realistically throttle the herd's growth rate, which is the correct
 behaviour.
 
-#### 4.8.3 "Exposure" — decision-layer seam — [PROPOSED]
+#### 4.8.3 "Exposure" — decision-layer seam — [AGREED]
 
 New solver-interface boolean parameter, analogous to `permanentPastureAcres`/
 `splitFraction` (§0.3): **`breedingExposure`** (per species — `cattle` and
@@ -775,7 +775,7 @@ cow:ox replacement-need ratio 4.00:4.91). Full-weight-equivalent animals:
 
 ## 5. Feed & Forage
 
-### 5.1 Two-currency feed conversion table — [AGREED]/[PROPOSED]
+### 5.1 Two-currency feed conversion table — [AGREED]
 
 **[AGREED] — Two-currency model**: every stored feed type (hay, oats, straw)
 is characterized by kg dry matter (DM) per natural unit, and kcal per kg DM.
@@ -1068,7 +1068,7 @@ hayRation_effective = max(0, maintenance_grazing − grazed_kcal) expressed in c
 | `offsetCap_class` — dry cattle (§5.4) | **0.30** | [AGREED] — see §5.4. |
 | `offsetCap_class` — working oxen/bulls, lactating/late-pregnant cows | **0** (housed, fully hay-fed, no cold increment) | [AGREED] — see §5.4. |
 
-**Derivation of `WINTER_GRAZING_COLD_FACTOR` — [PENDING]**. The physical
+**Derivation of `WINTER_GRAZING_COLD_FACTOR` — [AGREED, value 1.10]**. The physical
 mechanism is the **coat-insulation Lower Critical Temperature (LCT)**, from the
 NRC framework ([SD State Extension](https://extension.sdstate.edu/how-does-cold-stress-affect-energy-needs-cattle),
 [NRC *Effect of Environment*](https://www.ncbi.nlm.nih.gov/books/NBK232316/)):
@@ -1779,4 +1779,6 @@ are **superseded** by the straw/wool rows above (R7).
 | 2026-06-14 | §9.1 | New product-form spoilage rates adopted (all [PROPOSED], directional): cheese 0.5%/mo, salted meat 1.2%/mo, salted offal 1.2%/mo, tallow 0.5%/mo, straw 0.3%/mo, wool 0.2%/mo; ale and cloth marked N/A (non-storable / not tracked, see §7.2/§6.5). Supersedes `ASSUMPTIONS.md` C9/W4's zero/undocumented straw and wool rates | No source gives direct %/month figures for these forms; each rate is ordered relative to the §9 grain (0.7%)/hay (2%) baselines using the preservation-vs-raw-input relationships already established in §6 — direction and rough magnitude are evidenced, precision is not |
 | 2026-06-14 | §5.3 | `WINTER_GRAZING_COLD_FACTOR` set to **1.10** [AGREED], within the corrected coat-LCT range 1.00–1.22 (weather-averaged English winter) | User decision after the 17°F-anchored 1.20 derivation was withdrawn |
 | 2026-06-14 | §4.7 | All-animal winter mortality [PROPOSED]→[AGREED], and reformulated from a single per-winter roll to a **MONTHLY hazard** (`m` per winter month, cumulative `1−(1−m)^W`): adult cattle 0.67%/2.74% per mo, juvenile cattle 1.01%/3.45%, adult sheep 1.01%/4.18%, lambs<12mo 2.74%/7.17% (well-fed/underfed), calibrated so `W=3` reproduces the accepted 2%/8%, 3%/10%, 3%/12%, 8%/20% seasonal levels. Winter-born lambs keep §4.5's one-time neonatal 30%/50% (not monthly). Feed branch evaluated per-month | Accepted as-is, then user-corrected: a per-winter roll wouldn't scale with winter length — the model's whole purpose is arbitrary-length winters/summers, so mortality must compound monthly. Deep-winter-specific uplift flagged as a future option, not imposed |
+| 2026-06-14 | §4.8 / §4.8.2 | Reproduction model [PROPOSED]→[AGREED]; male service-capacity caps ratified at bull 12/mo, ram 40/mo (both within cited literature ranges, non-binding at current herd ratios — a safeguard for disproportionate male culling) | User decision; caps are evidence-backed and low-stakes |
+| 2026-06-14 | §3.2 / §3.4 | Soil depletion `d` (wheat 0.040 / barley 0.028 / oats 0.022 / hay-aftermath 0.010) and recovery `r=0.11` deliberately **left [PROVISIONALLY CONSISTENT]**, not ratified | Their final calibration depends on the month-by-month rotation/activity ledger, which lives in the out-of-scope decision-making model; locking them here would be premature. Stable and usable as-is (f*≈0.60–0.66) |
 
