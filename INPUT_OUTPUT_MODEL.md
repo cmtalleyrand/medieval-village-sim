@@ -467,7 +467,7 @@ This supersedes the earlier `ewesPerRam`-as-population-cap framing: `ewesPerRam�
 
 The **steady-state flock composition** that emerges from these rules plus the §4.8/§4.9 biology is derived in §4.9.3: for the standard 80-sheep flock, ≈25 ewes / ≈1 ram / ≈54 wethers, with wethers turning over at ~42mo (3.5yr) — within the "3–4yr" range above.
 
-### 4.7 Winter mortality — extended to all animals — [PROPOSED]
+### 4.7 Winter mortality — extended to all animals — [AGREED, monthly hazard]
 
 Currently only winter-born lambs (§4.5) face a winter mortality roll; all
 other animals (adult cattle, adult sheep, over-wintering calves/lambs born
@@ -482,31 +482,50 @@ scab epidemic (demesne flocks down ~50%, ~43% of animals dying) and the
 extraordinary, multi-year disease events, not representative of a "normal"
 winter — they are cited here for context only, **not** as the baseline.
 
-No normal-year baseline figure was found in the available sources. The
-figures below are therefore **[PROPOSED] reasoned estimates**, extending the
-same well-fed/underfed structure already agreed for lambs in §4.5 (adults
-are more cold-hardy and carry fat reserves, so adult rates are set lower than
-the lamb rates; first-winter juveniles sit between the two):
+No normal-year baseline figure was found in the available sources. The rates
+below are **reasoned estimates** [AGREED 2026-06-14], extending the same
+well-fed/underfed structure already agreed for lambs in §4.5 (adults are more
+cold-hardy and carry fat reserves, so adult rates are set lower than the lamb
+rates; first-winter juveniles sit between the two).
 
-| Cohort | Well-fed winter | Underfed winter (village feed shortfall, §6.4) |
-|---|---|---|
-| Adult cattle (cow/ox/bull, ≥36mo) | 2% | 8% |
-| Juvenile cattle (12–36mo, first/second winter) | 3% | 10% |
-| Adult sheep (ewe/ram/wether, ≥12mo) | 3% | 12% |
-| Winter-born lambs | 30% (unchanged, §4.5) | 50% (unchanged, §4.5) |
-| Non-winter-born lambs in their first winter (12mo old in their first winter is already "adult sheep" above — this row covers lambs <12mo old experiencing a winter, i.e. born in spring/summer of the same year) | 8% | 20% |
+**Expressed as a MONTHLY hazard, not a per-winter roll.** This is essential
+to the model's variable-season purpose: a single per-winter roll would kill the
+same fraction whether winter is 3 months or 12, which is wrong. Instead each
+cohort has a per-winter-month death probability `m`; cumulative loss over a
+winter of `W` months is `1 − (1 − m)^W`, so a longer winter (larger `W`, or a
+larger deep-winter core) kills proportionally more — the required behaviour.
+The monthly rates are calibrated so that a **standard 3-month winter** (`W=3`)
+reproduces the accepted seasonal levels shown in the right-hand column:
 
-Implementation: same pattern as §4.5 — an independent per-individual random
-roll once per winter (covering the full 3-month winter season, not per-month),
-with the well-fed/underfed branch selected by the §6.4 feed-shortfall flag for
-that winter. This roll is **separate from and additional to** age-based
-culling (§4.2/§4.4 max-age) and flock-management culling — it represents
-death from cold/disease/malnutrition, not deliberate slaughter.
+| Cohort | Monthly hazard `m` — well-fed | Monthly hazard `m` — underfed (§6.4 shortfall) | (cumulative at standard `W=3`) |
+|---|---|---|---|
+| Adult cattle (cow/ox/bull, ≥36mo) | **0.67%/mo** | **2.74%/mo** | 2% / 8% |
+| Juvenile cattle (12–36mo, first/second winter) | **1.01%/mo** | **3.45%/mo** | 3% / 10% |
+| Adult sheep (ewe/ram/wether, ≥12mo) | **1.01%/mo** | **4.18%/mo** | 3% / 12% |
+| Non-winter-born lambs <12mo in their first winter (born spring/summer same year) | **2.74%/mo** | **7.17%/mo** | 8% / 20% |
 
-**[PROPOSED — flagged for decision]**: these specific percentages are
-estimates with no direct medieval source; they are structurally consistent
-with §4.5's sourced lamb figures but the absolute levels are open to
-adjustment.
+(Each `m = 1 − (1 − seasonal)^{1/3}`.) **Winter-born lambs are NOT in this
+table**: their 30%/50% mortality (§4.5) is a **one-time neonatal birth event**
+— a single roll at birth for being born into winter — not a recurring monthly
+winter hazard, so it does not compound with `W` and stays exactly as §4.5
+specifies.
+
+Implementation: each **winter month** (`isWinter`), each eligible animal rolls
+an independent death probability = its cohort's monthly hazard, with the
+well-fed/underfed branch selected by that **month's** feed-balance state
+(§6.4) — so a winter that starts well-fed and runs short mid-season switches
+branches partway through, which a single seasonal roll could not represent.
+Growing-season months carry no §4.7 roll. This hazard is **separate from and
+additional to** age-based culling (§4.2/§4.4 max-age) and flock-management
+culling — it represents death from cold/disease/malnutrition, not deliberate
+slaughter.
+
+**Natural extension, not imposed here**: deep-winter months (`deep_winter`,
+per `classifyWinterMonth`) could carry a higher monthly hazard than
+shoulder-winter months, mirroring the existing `deepWinterFeedMultiplier`
+(1.25). Left at the uniform per-winter-month rate above for now (the accepted
+levels carry no deep-winter-specific evidence); flagged for the user if a
+harsher deep-winter core is wanted.
 
 ### 4.8 Reproduction model — monthly conception, seasonality & exposure — [PROPOSED]
 
@@ -1044,7 +1063,7 @@ hayRation_effective = max(0, maintenance_grazing − grazed_kcal) expressed in c
 
 | Parameter | Value | Status / basis |
 |---|---|---|
-| `WINTER_GRAZING_COLD_FACTOR` | **[PENDING — user decision], range 1.00–1.22** | [PENDING] — corrected derivation below; point value awaiting user choice of the English-winter wetness assumption. |
+| `WINTER_GRAZING_COLD_FACTOR` | **1.10** (a +10% maintenance increment while grazing out) | [AGREED 2026-06-14] — the weather-averaged region of the 1.00–1.22 coat-LCT range (a winter mixing soaked days near +20% with dry days near 0%), per user. |
 | `offsetCap_class` — sheep (ewe/wether/ram) | **1.0** (up to 100% of maintenance grazeable) | [AGREED] — sheep dig through snow to reach grass that cattle cannot ([Cornell Small Farms](https://smallfarms.cornell.edu/2015/01/considerations-for-winter-grazing-your-sheep/)); but realized only up to the pasture-supply bound in step 2. |
 | `offsetCap_class` — dry cattle (§5.4) | **0.30** | [AGREED] — see §5.4. |
 | `offsetCap_class` — working oxen/bulls, lactating/late-pregnant cows | **0** (housed, fully hay-fed, no cold increment) | [AGREED] — see §5.4. |
@@ -1084,8 +1103,9 @@ the same pattern via wool (dry 2.5″ wool LCT 28°F → wet 59°F; wind-chill
 increment doubles 1%/°F→2%/°F — [AHDB](https://ahdb.org.uk/news/managing-sheep-in-cold-weather),
 [OSU](https://u.osu.edu/sheep/2023/01/10/adjusting-feed-requirements-for-cold-weather/)),
 though wool sheds water better, so sheep reach the wet-coat case less readily
-than cattle. **The single point value within 1.00–1.22 is a user decision**
-(wetness assumption), not yet set.
+than cattle. **Adopted: `WINTER_GRAZING_COLD_FACTOR = 1.10`**
+[AGREED 2026-06-14] — the weather-averaged region of the 1.00–1.22 range (a
+winter mixing soaked days near +20% with dry days near 0%), per user.
 
 **Emergent consequences (why this is better than the binary rule)**: in deep
 winter, winter growth = 0 ⇒ `grazed_kcal = 0` ⇒ full hay ration applies
@@ -1123,7 +1143,7 @@ in the §5.3 mechanic:
 
 | Cattle state | `offsetCap_class` | Notes |
 |---|---|---|
-| Dry adult cow (multiplier tier ×1.0 — not pregnant ≥6mo, not lactating) | **0.30** | Goes out to grass; subject to the §5.3 pasture-supply bound and the §5.3 cold factor (`WINTER_GRAZING_COLD_FACTOR`, value [PENDING]). |
+| Dry adult cow (multiplier tier ×1.0 — not pregnant ≥6mo, not lactating) | **0.30** | Goes out to grass; subject to the §5.3 pasture-supply bound and the §5.3 ×1.10 cold factor. |
 | Lactating or late-pregnant (≥6mo) cow; oxen/bulls (working) | **0** | Housed, fully hay-fed, no cold increment. |
 
 The **30%** cap is the user-confirmed **maximum** (not a guaranteed offset):
@@ -1757,4 +1777,6 @@ are **superseded** by the straw/wool rows above (R7).
 | 2026-06-14 | §6.4 | Milk→cheese conversion adopted: `cheese_kg = milk_litres / 10`, the conservative (more-milk-required) end of the modern hard-cheese 9.5-10.5 L/kg range, absent medieval-specific data | Best available figure; medieval cheesemaking plausibly less efficient than modern, so the conservative end of the modern range is the safer adoption |
 | 2026-06-14 | §6.5 | "Cloth" not introduced as a separate tracked currency — wool-lbs (existing W1/W2 accounting) remains the model's wool→clothing conversion at its current level of abstraction; revisit only if trade/market mechanics are added | No model behaviour currently consumes a "cloth" unit; adding one (and its unsourceable wool-per-yard conversion) would be complexity without a consumer (R3) |
 | 2026-06-14 | §9.1 | New product-form spoilage rates adopted (all [PROPOSED], directional): cheese 0.5%/mo, salted meat 1.2%/mo, salted offal 1.2%/mo, tallow 0.5%/mo, straw 0.3%/mo, wool 0.2%/mo; ale and cloth marked N/A (non-storable / not tracked, see §7.2/§6.5). Supersedes `ASSUMPTIONS.md` C9/W4's zero/undocumented straw and wool rates | No source gives direct %/month figures for these forms; each rate is ordered relative to the §9 grain (0.7%)/hay (2%) baselines using the preservation-vs-raw-input relationships already established in §6 — direction and rough magnitude are evidenced, precision is not |
+| 2026-06-14 | §5.3 | `WINTER_GRAZING_COLD_FACTOR` set to **1.10** [AGREED], within the corrected coat-LCT range 1.00–1.22 (weather-averaged English winter) | User decision after the 17°F-anchored 1.20 derivation was withdrawn |
+| 2026-06-14 | §4.7 | All-animal winter mortality [PROPOSED]→[AGREED], and reformulated from a single per-winter roll to a **MONTHLY hazard** (`m` per winter month, cumulative `1−(1−m)^W`): adult cattle 0.67%/2.74% per mo, juvenile cattle 1.01%/3.45%, adult sheep 1.01%/4.18%, lambs<12mo 2.74%/7.17% (well-fed/underfed), calibrated so `W=3` reproduces the accepted 2%/8%, 3%/10%, 3%/12%, 8%/20% seasonal levels. Winter-born lambs keep §4.5's one-time neonatal 30%/50% (not monthly). Feed branch evaluated per-month | Accepted as-is, then user-corrected: a per-winter roll wouldn't scale with winter length — the model's whole purpose is arbitrary-length winters/summers, so mortality must compound monthly. Deep-winter-specific uplift flagged as a future option, not imposed |
 
