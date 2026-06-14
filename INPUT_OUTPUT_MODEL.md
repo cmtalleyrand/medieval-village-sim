@@ -1194,10 +1194,106 @@ check, not a coincidence to rely on.
    surplus. What happens to any remainder beyond those preservation limits is
    a rationing/decision-layer question (§0.2), not addressed here.
 
-Open (future batch): meat→salted-meat conversion ratio, salt input
-requirement; numeric spoilage rates for tallow/salted offal/salted meat
-(items 1–3 above); the non-placeholder derivation of `mealCap_per_capita`
-(§4.9).
+### 6.3 Meat → salted meat conversion & salt input — [DERIVED]
+
+Standard whole-muscle dry-curing uses **2–3% salt by weight of the meat**,
+with ~2.25% as a commonly-cited "sweet spot"
+([ScienceInsights — salt curing ratios](https://scienceinsights.org/how-much-salt-to-cure-meat-ratios-methods/)).
+For a storage-grade (not just lightly-seasoned) cure, **at least ~30% weight
+loss** through moisture removal is typical for the milder end of long-term
+preservation, rising to 40%+ for harder/drier cures
+([EatCuredMeat — dry curing](https://eatcuredmeat.com/dry-curing/how-to-dry-cure-meat-traditional/)).
+
+**Adopted**: for the up-to-50% fraction of cull meat that §6.2 allows to be
+preserved,
+
+```
+salt_input_kg     = 0.025 × meat_kg_to_be_salted   (2.5% of pre-cure weight)
+salted_meat_kg    = 0.70  × meat_kg_to_be_salted   (30% moisture-loss weight reduction)
+```
+
+i.e. **100 kg of fresh meat → 70 kg of salted meat, consuming 2.5 kg of
+salt**. The 30% figure is taken from the *low* end of the "storage-grade"
+range (30–40%+) — appropriate because this product still needs to be
+*edible food*, not a maximally-dried, rock-hard preserve; 2.5% sits in the
+middle of the cited 2–3% whole-muscle range. Salt itself is treated as an
+**external input** (purchased/traded, not produced by the village) — its
+supply is out of scope per §0.3, but the *demand* for it (2.5% of salted
+meat's pre-cure weight) is a physical conversion fact recorded here.
+
+The same ratios are adopted for **salted offal** (§6.2 item 2, up to 20%
+preservable) — offal is comparable lean tissue, and no offal-specific curing
+literature was found to justify a different figure; flagged as
+[PROPOSED — offal-specific] if a future source warrants revision.
+
+**Tallow** (§6.2 item 1, the rendered-fat half) is **not salted** — rendering
+itself (with its stated 20% conversion loss) is the preservation step; no
+additional salt input applies.
+
+### 6.4 Milk → cheese conversion — [DERIVED]
+
+Modern cheesemaking conversion for hard cheese (cheddar) is **~9.5–10.5
+litres of milk per kg of cheese**
+([DairyCraftPro — cheese yield](https://dairycraftpro.com/how-to-calculate-cheese-yield-from-milk-the-complete-guide-for-cheesemakers/)).
+No medieval-specific yield figure was found; medieval cheesemaking (less
+standardized milk, simpler presses) plausibly extracted *somewhat* less
+solids per litre than modern controlled processes, which would mean *more*
+milk per kg of cheese than the modern figure — but absent a sourced
+correction factor, the modern hard-cheese ratio is adopted as the
+best-available central estimate, at the **conservative (more milk required)**
+end of the cited 9.5–10.5 range:
+
+```
+cheese_kg = milk_litres / 10
+```
+
+**Storage profile**: cheese is the dairy preservation form *specifically
+because* it is shelf-stable for months — hard cheeses were aged in cool
+cellars for extended periods ([Cheese Grotto — history of cheese
+storage](https://cheesegrotto.com/blogs/journal/history-of-cheese-part-3-packaging);
+[Brewminate — medieval food storage](https://brewminate.com/medieval-food-storage-before-refrigeration/)),
+in deliberate contrast to raw milk's near-zero shelf life (the entire reason
+§7.3's lactation-curve milk is consumed same-month, with no raw-milk storage
+in the model). No precise %/month figure for medieval cheese exists in the
+sources found, but the multi-month-to-multi-year aging window documented
+there is **categorically longer** than grain's. **Adopted, §9**: cheese
+spoilage = **0.5%/month** — set *below* grain's 0.7%/month baseline (§9),
+consistent with cheese's documented long-aging role, while remaining
+non-zero (mould/rind loss does occur over a year). Flagged
+[PROPOSED — directional only] for the exact figure, since no source gives a
+%/month directly; the *direction* (cheese ≤ grain) is well-supported.
+
+### 6.5 Wool → cloth — scope decision: not introduced as a separate currency — [PROPOSED, decisive call]
+
+§6.1 listed "wool → cloth (spinning-capacity bottleneck)" as in-scope. On
+inspection, the **existing model (`ASSUMPTIONS.md` W1/W2,
+`simulation.ts:184–188`) already operates entirely in wool-lbs**: clothing
+*need* is expressed in `clothingNeedWoolLbs` per person, wool *supply* in
+`woolPerSheep` lbs/sheep/year, and the spinning-capacity bottleneck (W1: each
+woman can spin 1.5× her household's annual need) is already a wool-lbs-based
+constraint. There is no other consumer in this model — no trade, no market,
+no separate "cloth" stock — that would need wool expressed in a different
+unit ("yards of cloth", say).
+
+Introducing a distinct `cloth` currency would require (a) a wool-weight→cloth
+conversion factor (genuinely hard to source — cloth weight per yard varied
+enormously by weave/quality, and the search above found labour-intensity data
+but no weight-conversion figure) and (b) a second spinning *and weaving*
+capacity parameter, **for no model behaviour that currently depends on it**.
+Per R3 (proportional simplicity), this would be complexity added without a
+consumer.
+
+**Decision**: "cloth" is **not** introduced as a separate tracked good. The
+existing wool-lbs accounting (supply via `woolPerSheep`, demand via
+`clothingNeedWoolLbs` × W2's winter-doubling, bottleneck via W1's 1.5×
+spinning-capacity multiplier) **is** this document's "wool → clothing"
+physical conversion, at the level of abstraction the model actually uses. If
+a future batch adds inter-village trade or a market for finished cloth
+(§0.3/§0.4 territory), a wool→cloth weight conversion would become a genuine
+new requirement at that point — revisit then. **This is a scope-narrowing
+call made now without an open item carried forward**; flagged [PROPOSED] for
+override if a concrete future use for a separate "cloth" unit is already
+anticipated.
 
 ---
 
@@ -1277,10 +1373,17 @@ shape**, in the same spirit as §4.1/§4.3's winter dairy ×0.35 factor (§7.3)
 and §0.2's fuel seasonal-demand scaling (D9) — both already-accepted examples
 of seasonally-shaped *demand* being in-scope for this document.
 
-Open (future batch, §9): ale's own spoilage/storage profile (is brewed ale
-storable across months, or does it follow a faster "small beer doesn't keep"
-curve?) — not yet specified; draff's "no storage, same-month only" rule above
-does not depend on this.
+**Ale storage profile — [AGREED, resolved in §9]**: medieval (unhopped) ale
+soured within **3–4 days** — 1446 Elmley Castle manorial regulations
+prohibited alebrewers from selling ale more than four days old
+([Recreating Medieval English Ales](https://www.cs.cmu.edu/~pwp/tofi/medieval_english_ale.html)).
+Against this model's one-month timestep, a multi-day shelf life is
+indistinguishable from **zero cross-month storage** — exactly like draff
+above. Ale therefore needs **no spoilage-rate parameter**: it is produced
+continuously (per "Production pattern" above) and consumed within the same
+month, full stop. Any ale brewed in a month but not consumed that month is
+lost, the same as draff. This closes the "open" item below without
+introducing a new decay-rate parameter.
 
 ### 7.3 Dairy availability — reconciled with §4.1/§4.3 lactation curves — [AGREED, R7 resolved]
 
@@ -1525,11 +1628,30 @@ and 5%/month (hay) to more realistic figures:
 | Grain (wheat/barley/oats) | 3%/month | **~0.7%/month** |
 | Hay | 5%/month | **~2%/month** |
 
-Open (future batch): spoilage rates for the new product forms introduced in
-§6 (cheese, salted meat — both are *preservation* forms expected to spoil
-**more slowly** than their raw inputs, which is part of their economic
-rationale) and for straw, wool, and cloth (currently zero/undocumented per
-`ASSUMPTIONS.md` C9, W4).
+### 9.1 New product-form spoilage rates — [PROPOSED, directional rationale documented]
+
+The §6 product chain introduces new storable forms. No source gives a direct
+%/month figure for any of these (medieval storage-duration anecdotes describe
+*total* shelf life in months/years, not monthly decay rates), so each figure
+below is **derived directionally relative to the §9 grain/hay baselines**,
+using the qualitative preservation-vs-raw-input relationship already
+established in §6.2/§6.4 as the ordering constraint. All are tagged
+[PROPOSED] — the *direction and rough magnitude* are evidenced, the second
+decimal place is not.
+
+| Stock | Rate | Basis |
+|---|---|---|
+| Cheese | **0.5%/month** | §6.4 — below grain's 0.7%, reflecting cheese's documented multi-month-to-multi-year cellar aging (categorically longer-lived than its raw-milk input, which has ~zero shelf life). |
+| Salted meat | **1.2%/month** | §6.2 item 3 — "somewhat higher and more variable than grain." Salt larders reliably carried meat through a 4–6 month winter with some rancidity but remaining edible; 1.2%/month ⇒ ~7% cumulative loss over 6 months, consistent with "noticeable but not prohibitive" degradation. |
+| Salted offal | **1.2%/month** | §6.2 item 2 — same basis as salted meat (comparable lean tissue, same cure per §6.3); no offal-specific source found to differentiate. |
+| Tallow (rendered fat) | **0.5%/month** | §6.2 item 1 — "lower than grain's baseline" per §6.2's own framing; rendered fat was historically valued precisely for long storage (candles, cooking fat carried across seasons). Set equal to cheese's rate as a similarly "well-preserved, but not indefinitely" form. "More variable than grain" (rancidity is condition-sensitive) is a qualitative caveat on top of this central value, not a separate parameter. |
+| Straw | **0.3%/month** | Dry, bulky, low-nutrient material — less attractive to pests/rot than grain, but (unlike seasoned fuel wood, §8.5) can mould if damp, so non-zero. Set below grain, well above hay's 2% (straw is far less digestible/nutrient-dense than hay, so less microbially active). |
+| Wool (raw) | **0.2%/month** | Archaeological wool textiles survive centuries under reasonable conditions, indicating very slow decay; moth damage is the primary risk and is slow/condition-dependent. Lowest of the new figures — wool is not a food product and has no microbial spoilage pathway. |
+| Ale | **N/A — non-storable** | §7.2/§7.3 — unhopped ale sours in 3–4 days, indistinguishable from zero cross-month storage at this model's monthly timestep. No spoilage *rate* applies; any ale unconsumed in its production month is simply lost (same rule as draff). |
+| Cloth | **N/A — not a tracked good** | §6.5 — "cloth" is not introduced as a separate currency; wool-lbs (above) is the relevant stock. |
+
+`ASSUMPTIONS.md` C9/W4 (currently zero/undocumented spoilage for straw/wool)
+are **superseded** by the straw/wool rows above (R7).
 
 ---
 
@@ -1597,4 +1719,9 @@ rationale) and for straw, wool, and cloth (currently zero/undocumented per
 | 2026-06-14 | §8.3 | `fuelNeedsSummer/Winter/DeepWinter` (0.5/1.5/2.0 cartloads/household/month) confirmed as-is: total 9 cartloads/household/yr ≈ 0.83 m³/person/yr, just below the 1–2 m³/person/yr pre-industrial benchmark — gap explained by F3's untracked free summer gathering; winter:summer 3:1 ratio and deep-winter +33% are directionally consistent with heating degree-day scaling | Within the cited benchmark band once untracked summer fuel is accounted for; no unsupported multiplier introduced |
 | 2026-06-14 | §8.4/8.5 | F3 (free summer fuel) and F5 (no fuel spoilage) confirmed as-is — F3 validated against a ~250kg/day casual-gathering benchmark (≈2x the entire monthly summer need in one day); F5 is physically uncontroversial for seasoned wood | Both well-grounded and uncontentious; decided directly rather than escalated |
 | 2026-06-14 | §8.6 | Fuel-shortage caloric-penalty response (F4/D9) classified as decision-layer (behavioral rationing response to a physical shortfall), out of scope for this document, per the §0.1 split already applied to D1/D3 in §7.4 | Consistent scope treatment; G10's implementation bug noted but left for a future batch |
+| 2026-06-14 | §7.2 | Ale spoilage resolved: no decay-rate parameter — unhopped ale soured in 3–4 days (1446 Elmley Castle records), indistinguishable from zero cross-month storage at this model's monthly timestep; ale follows draff's "produced and consumed same month, else lost" rule | Closes §7.2's "open" item without inventing a new parameter; direct citation available unlike the rejected 1.10 cold factor |
+| 2026-06-14 | §6.3 | Meat→salted-meat conversion adopted: 100kg fresh meat → 70kg salted meat + 2.5kg salt input (2.5% salt by pre-cure weight, 30% moisture-loss weight reduction). Same ratios applied to salted offal; tallow unaffected (rendering is its own preservation step, no salt) | 2.5% sits mid-range of the cited 2-3% whole-muscle dry-cure ratio; 30% is the low/conservative end of the cited 30-40%+ storage-grade weight-loss range, appropriate for an edible (not maximally-dried) preserve |
+| 2026-06-14 | §6.4 | Milk→cheese conversion adopted: `cheese_kg = milk_litres / 10`, the conservative (more-milk-required) end of the modern hard-cheese 9.5-10.5 L/kg range, absent medieval-specific data | Best available figure; medieval cheesemaking plausibly less efficient than modern, so the conservative end of the modern range is the safer adoption |
+| 2026-06-14 | §6.5 | "Cloth" not introduced as a separate tracked currency — wool-lbs (existing W1/W2 accounting) remains the model's wool→clothing conversion at its current level of abstraction; revisit only if trade/market mechanics are added | No model behaviour currently consumes a "cloth" unit; adding one (and its unsourceable wool-per-yard conversion) would be complexity without a consumer (R3) |
+| 2026-06-14 | §9.1 | New product-form spoilage rates adopted (all [PROPOSED], directional): cheese 0.5%/mo, salted meat 1.2%/mo, salted offal 1.2%/mo, tallow 0.5%/mo, straw 0.3%/mo, wool 0.2%/mo; ale and cloth marked N/A (non-storable / not tracked, see §7.2/§6.5). Supersedes `ASSUMPTIONS.md` C9/W4's zero/undocumented straw and wool rates | No source gives direct %/month figures for these forms; each rate is ordered relative to the §9 grain (0.7%)/hay (2%) baselines using the preservation-vs-raw-input relationships already established in §6 — direction and rough magnitude are evidenced, precision is not |
 
