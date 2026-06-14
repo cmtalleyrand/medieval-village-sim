@@ -465,6 +465,8 @@ The existing flat 30% winter-born-lamb mortality (`Math.random() > 0.30` surviva
 
 This supersedes the earlier `ewesPerRam`-as-population-cap framing: `ewesPerRam≈40` is retained, but now determines the ram/wether split among male lambs rather than capping/culling an already-existing ram population.
 
+The **steady-state flock composition** that emerges from these rules plus the §4.8/§4.9 biology is derived in §4.9.3: for the standard 80-sheep flock, ≈25 ewes / ≈1 ram / ≈54 wethers, with wethers turning over at ~42mo (3.5yr) — within the "3–4yr" range above.
+
 ### 4.7 Winter mortality — extended to all animals — [PROPOSED]
 
 Currently only winter-born lambs (§4.5) face a winter mortality roll; all
@@ -514,35 +516,58 @@ Replaced with **per-individual monthly conception probability rolls**,
 year-round, with a seasonal modifier (not a hard gate) and a male
 service-capacity cap.
 
-#### 4.8.1 Monthly conception probability — [PROPOSED]
+#### 4.8.1 Monthly conception probability — [DERIVED]
 
 For each fertile female (past breeding age, not currently pregnant, past her
 postpartum-infertile window per §4.1/§4.3), each month is an independent
-conception roll **if she is "exposed" (§4.8.3)**:
+conception roll **if she is "exposed" (§4.8.3)**. The monthly probability is
+**season-dependent**, expressed entirely through the existing season-TYPE
+classification (`classifyMonth` / the `isWinter` flag) so it generalizes to
+arbitrary growing/winter lengths (see the generalization note below).
 
-| Species | Estrous cycle | Per-cycle conception rate (natural service) | Resulting in-season monthly probability | Winter modifier |
-|---|---|---|---|---|
-| Cattle | ≈21 days (≈1.4 cycles/month) | 40–60% ([beefrepro.org](https://beefrepro.org/wp-content/uploads/2020/09/04-michael-smith.pdf), [Iowa Beef Center](https://www.iowabeefcenter.org/estrussynch/BullSync.pdf)) | **≈55%** | **×0.5** (≈28%) — cattle cycle year-round but winter cold-stress/poor nutrition measurably depresses fertility |
-| Sheep | ≈17 days (≈1.75 cycles/month) | ~85–98% in natural season ([NMSU](https://aces-newmexicosheep.nmsu.edu/breeding/reproduction.html), [Ontario sheep reproduction](https://www.ontario.ca/page/sheep-reproduction-basics-and-conception-rates)) | **≈75%** (Sep–Jan, autumn breeding season) | **×0.15** (≈11%) for Feb–Aug — ewes are strongly seasonal (anestrous) outside autumn/early winter; a small residual probability is retained rather than a hard zero, since some out-of-season cycling occurs and the user specified "(random)" not "never" |
+The literature gives *modern, management-intensive* fertility (AI or
+hand-mating, estrus detection, body-condition supplementation, veterinary
+care). Medieval natural-service stock on seasonal feed achieved materially
+less. We therefore take the cited modern **seasonal shape** as authoritative
+but apply a single **medieval-husbandry discount scalar** per species, fixed
+by requiring the standard village (G=9, W=3) to reproduce an evidence-anchored
+**annual** conception→birth rate (§4.8.4). The scalar is back-solved from the
+steady state of the monthly-roll process itself (a periodic Markov / renewal
+chain over cycling→pregnant→postpartum states), so the monthly rolls and the
+annual target are mutually consistent by construction.
 
-This directly satisfies **"don't assume a reproductive cycle that limits
-calving to winter only"**: a cow conceiving in, say, January (at the reduced
-≈28% winter probability) will calve ~9 months later (October); a ewe
-conceiving in December (≈11% out-of-season-adjacent... actually December
-falls in the Sep–Jan in-season window at ≈75%, see below) calves/lambs in
-May. Births are no longer gated by month at all — only **conception**
-probability varies by month, and gestation length (§4.1/§4.3, unchanged)
-determines the birth month, which can fall in any season including winter.
+| Species | Seasonal driver & in-season window | Cited modern in-season monthly rate | Discount | Calibrated monthly conception probability | Annual rate (G=9,W=3) |
+|---|---|---|---|---|---|
+| Cattle | **Body-condition / feed** (non-seasonal breeder; fertility tracks nutrition). In-season = growing-season months, winter months reduced via the existing ×0.5 modifier ([beefrepro.org](https://beefrepro.org/wp-content/uploads/2020/09/04-michael-smith.pdf), [Iowa Beef Center](https://www.iowabeefcenter.org/estrussynch/BullSync.pdf)) | ≈55% growing / ≈27.5% winter | **×0.294** | **16.2%** growing-season month / **8.1%** winter month | **0.667** (≈ "2 calves in 3 years") |
+| Sheep | **Photoperiod** (short-day seasonal breeder; rut triggered by shortening days, largely management-independent). In-season = season-type **`autumn`** (the decreasing-daylength shoulder); all other season types out-of-season ([NMSU](https://aces-newmexicosheep.nmsu.edu/breeding/reproduction.html), [Ontario](https://www.ontario.ca/page/sheep-reproduction-basics-and-conception-rates)) | ≈75% autumn / ≈11% other | **×0.541** | **40.6%** autumn month / **5.95%** other month | **0.880** |
 
-`COW_MIN_CYCLE`/`EWE_MIN_CYCLE = 12mo` are **removed** as hard gates; the
-**postpartum-infertile period** (§4.1: 2mo cows, §4.3: 2mo ewes) remains as
-the only hard block on conception immediately after giving birth — after
-that window, the monthly roll applies every month regardless of how recently
-she last calved/lambed. (In practice, ≈55% cattle / ≈75% in-season sheep
-monthly probability means most fertile females conceive again within 1–3
-months of becoming eligible — i.e. **shorter than 12 months on average** —
-which is a deliberate loosening versus the old rigid annual cycle, consistent
-with "overwintered cows can give birth.")
+The two discounts differ for a principled reason: cattle fertility is
+*management-dependent* (the cited 55% assumes estrus detection / BCS
+management medieval husbandry lacks → large discount), whereas the sheep rut
+is an *innate photoperiod response* that medieval ewes retained → smaller
+discount.
+
+**Seasonality is keyed to season *type*, not calendar month** — this corrects
+an earlier fixed-calendar "Sep–Jan / Feb–Aug" framing that silently assumed a
+12-month year. The cattle winter modifier keys off `isWinter` (`month > G`);
+the sheep rut keys off the `autumn` type from `classifyMonth`. Because
+`autumn` is always the last ≤3 growing-season months regardless of G, and
+`isWinter` covers exactly the W winter months regardless of W, both rates
+behave correctly when winter or summer is made arbitrarily long: **a longer
+winter does not extend the sheep rut** (the photoperiod window stays fixed) —
+it merely adds out-of-season months. This is precisely the behaviour the
+variable-season design requires.
+
+Births are not gated by month — only **conception** probability varies — and
+gestation length (§4.1/§4.3) sets the birth month, which can fall in any
+season. `COW_MIN_CYCLE`/`EWE_MIN_CYCLE = 12mo` are **removed** as hard gates;
+the **postpartum-infertile period** (§4.1: 2mo cows, §4.3: 2mo ewes) remains
+the only hard block immediately post-partum. With the calibrated
+probabilities the *emergent* mean interval is **longer** than 12 months
+(cattle ≈18mo; sheep ≈13–14mo) — the evidence-anchored replacement for the old
+rigid annual gate. (The earlier undiscounted ≈55% / ≈75% figures, taken at
+face value, implied a biologically impossible >1 birth/female/year; that error
+is corrected here.)
 
 #### 4.8.2 Male service-capacity cap — [PROPOSED]
 
@@ -576,49 +601,138 @@ females are kept apart (historically: rams/bulls penned separately from the
 flock/herd outside the desired breeding window).
 
 This gives the future planner/solver a lever to, e.g., concentrate sheep
-conceptions into the Sep–Jan natural window (by setting
-`breedingExposure.sheep = false` for Feb–Aug, which costs little since the
-out-of-season probability is already low) or to suppress cattle breeding
-during a feed-constrained period — without requiring any change to the
-biological probability tables above.
+conceptions into the autumn natural window (by setting
+`breedingExposure.sheep = false` outside `autumn`-type months, which costs
+little since the out-of-season probability is already low) or to suppress
+cattle breeding during a feed-constrained period — without requiring any
+change to the biological probability tables above.
 
-### 4.9 Steady-state offtake (cull) model — [PENDING, deferred to a future batch]
+#### 4.8.4 Annual-rate evidence anchors — [AGREED targets; DERIVED monthly probabilities]
 
-A full derivation of the annual cull (headcount by cohort/sex/castration
-status, and the resulting meat/offal/fat yield) was attempted but found to
-require a fuller model than a single-snapshot steady-state calculation can
-honestly support, and is **deferred**. Findings/requirements established so
-far, for when this batch is picked up:
+The calibration targets in §4.8.1 are not free parameters; each is anchored:
 
-- **Cattle calving rate**: an initial seasonal-conception derivation gave
-  ≈0.917 calvings/cow/year — **rejected** as implausibly high (exceeds even
-  well-managed *modern* calving rates of ~85–90%, achieved with AI,
-  body-condition management, and year-round feed). A "two calves in three
-  years" heuristic (≈0.667/yr) — reflecting nutritionally-driven postpartum
-  anestrus extending well past §4.1's 2-month modern-dairy figure — is a more
-  defensible order of magnitude for extensive medieval husbandry, but needs
-  proper sourcing/derivation rather than adoption as a round number.
-- **Cull timing**: surplus young stock should be culled at the first
-  opportunity (early autumn, ~6–8 months old) rather than overwintered toward
-  maturity — overwintering surplus animals defeats the purpose of culling
-  (saving winter feed for the core breeding/working herd). Only the
-  replacement-sized cohort overwinters to breeding/working age.
-- **Weight-at-cull**: modern bodyweight *targets* (e.g. 24-month "finished"
-  weights) are not representative of medieval/extensive stock at a 6–8 month
-  autumn cull. An explicit per-month weight-growth curve, calibrated to
-  medieval/extensive (not modern-target) growth rates, is needed.
-- **Full-model requirement**: the eventual model must track cohorts **by
-  month** — conceptions distributed across a breeding-season window (not a
-  single "autumn cohort"), each cohort's age/weight tracked monthly via the
-  growth curve above, with cull/replacement decisions evaluated per cohort.
-- **Sheep flock composition**: a minimal-ewe / wool-economy composition (ewes
-  sized to replacement + a small safety margin, wethers dominant) is
-  directionally consistent with §4.6 ("sheep exist for wool, not milk"), but
-  the exact composition depends on the same monthly model.
+- **Cattle = 0.667 calvings/cow/year ("two calves in three years").**
+  Medieval/early cattle were spring-calving *seasonal* breeders — year-round
+  fertility presupposes year-round good nutrition, which winter denies
+  ([prehistoric cattle calving, *Nature Sci. Rep.* 2021](https://www.nature.com/articles/s41598-021-87674-1)).
+  A 9-month gestation plus a suckled cow's nutritionally-extended postpartum
+  anestrus and winter body-condition loss push a large fraction of cows onto
+  an **~18-month calving interval**. 0.667 is the user-directed target and
+  sits at the lower-fertility end appropriate to extensive, winter-constrained
+  husbandry. *Crucially it is well below modern AI-managed rates (~0.85–0.90) —
+  the sanity bound an earlier ≈0.917 derivation violated.*
+- **Sheep = 0.88 lambings/ewe/year.** The 5-month gestation + photoperiod-
+  locked autumn rut give the ewe all summer to rebuild condition before
+  tupping, so — unlike the cow — she faces **no interval squeeze** and lambs
+  near-annually; medieval manorial evidence records that "ewes typically
+  produced one lamb per year" ([BAHS, *Statistics of Sheep in Medieval
+  England*](https://bahs.org.uk/AGHR/ARTICLES/07n2a2.pdf)). 0.88 is decomposed
+  from the historical **"lambs reared per ewe ≈ 0.7" ÷ pre-weaning survival
+  0.80 (§4.4) ≈ 0.88** conception-to-live-birth; the 0.80 mortality is then
+  applied *separately* downstream so the product (~0.70 reared) reproduces the
+  historical figure. This supersedes the prior implicit "once-yearly" gate
+  (§4.3) — sheep are *more* fertile per year than cattle, the opposite of what
+  a single shared rate would have implied.
 
-Until this model exists, §6.1's meat-product consumption cap uses a round
-placeholder (12 kg/person/month) rather than a value derived from this
-section.
+### 4.9 Steady-state offtake (cull) model — [DERIVED]
+
+**Scope.** This section specifies the *physical* steady-state annual offtake:
+how many animals of each cohort/sex/castration class leave the herd per year,
+and the meat/offal/fat that yields. It does **not** set the cull *policy*
+(which animals a given player/solver chooses to cull in a given month) — that
+is decision-layer (§0.2). It assumes only the historically-universal physical
+pattern that surplus stock is removed before winter to conserve feed, and
+computes the steady-state implied by the §4.2–4.8 biology. All figures are for
+the **standard village** (20 households → 80 cattle, 80 sheep, pop 90).
+
+#### 4.9.1 Principle — cull young to save winter feed
+
+Overwintering an animal only to cull it later spends scarce winter feed on it
+twice over; the physically efficient (and historically attested) pattern is:
+
+- **Surplus young** (calves/lambs beyond replacement need) are culled at the
+  **first autumn**, ~6–8 months old, at a *fraction* of mature weight (§4.9.4).
+- **Only the replacement-sized cohort overwinters** to breeding/working age.
+- **Worn-out breeding/working stock** is culled at max age (§4.2/§4.4) at
+  **full mature weight**. This is the steady-state "old-age cull."
+
+#### 4.9.2 Cattle offtake — 40 cows + 40 oxen/bulls
+
+| Quantity | Value | Derivation |
+|---|---|---|
+| Calves surviving to autumn (~7mo) | **24.00** (12.0 F / 12.0 M) | 40 cows × 0.667 (§4.8.4) × 0.90 pre-wean survival (§4.4) |
+| Replacement need, net of natural death | cows 40/8−0.02·40 = 4.00/yr; oxen 40/7−0.02·40 = 4.91/yr | max age 96mo (cow) / 84mo (ox), §4.2; adult winter mortality 2%, §4.7 |
+| Replacements *selected* at autumn | 4.40 F / 5.30 M | net need ÷ further juvenile survival to breeding age (0.97^1.5 F→24mo, 0.97^2.5 M→36mo; §4.7) |
+| **Surplus culled young (~7mo)** | **14.30** | calves − replacements selected |
+| **Old-age cull (full weight)** | **9.11** | = net replacement need (cull = intake at steady state) |
+
+#### 4.9.3 Sheep offtake — 80 sheep, wool economy
+
+Sheep exist for wool, not milk (§4.6), so the flock carries the **minimum ewe
+count** needed to replace itself plus a small safety margin; the remaining
+capacity is wethers. Solving the steady state (ewes E, rams R = E/40 per
+`ewesPerRam`, wethers = 80−E−R; replacement need = E/8 + Wth/3.5yr + R/8, each
+net of 3% adult winter mortality; lamb survivors = E × 0.88 × 0.80; lambs
+sized to (1 + 0.10 margin) × replacement need):
+
+| Quantity | Value |
+|---|---|
+| Solved composition | **25.4 ewes / 0.6 rams / 54.0 wethers** |
+| Lambs surviving to autumn (~7mo) | 17.90 |
+| Replacement need (ewe 2.42 + wether 13.79 + ram 0.06) | 16.27 |
+| **Surplus lambs culled young (~7mo)** | **1.63** |
+| **Old-age cull (full weight)** | **16.27** |
+
+Wethers dominate (~68% of the flock) and turn over at **~42mo (3.5yr)**, within
+§4.6's "3–4yr" range; the small surplus-lamb count reflects a wool flock
+sized for replacement, not meat production.
+
+#### 4.9.4 Weight-at-cull as a fraction of mature weight — [DERIVED + corroborated]
+
+The young (~6–8mo) cull animals are **not** at mature weight. Their weight
+fraction is derived from a **Brody growth curve** `W(t)/A = 1 − b·e^(−Kt)`
+fitted through two anchors — birth weight (cattle 7%, sheep 8% of mature,
+[cited](https://www.ksre.k-state.edu/news/stories/2023/05/cattle-chat-birth-weight-variablity.html))
+and the physiological puberty/breeding threshold (~60% of mature,
+[cited](https://www.feedlotmagazine.com/news/cow_calf_corner/percentage-of-mature-weight-at-puberty-in-heifers/article_9fa71c1c-7db8-5c76-befa-7b7b3b8e6114.html))
+reached at the model's **already-agreed breeding ages** (cattle 24mo, sheep
+12mo). Medieval slow maturation enters *only* through those late ages (fitted
+K: cattle ~3.5%/mo, sheep ~8%/mo). **Self-validation:** feeding the fit a
+*modern* 14-month breeding age recovers K ≈ 6.0%/mo — squarely in the
+published Brody range (5.4–6.6%/mo).
+
+| Species | Brody (6–8mo) | Achieved-weight corroboration (unimproved analogue) | **Adopted** |
+|---|---|---|---|
+| Cattle | 0.25–0.30 | **Highland** calf weans at 154kg / 450kg cow = **34%** at ~6.7mo (1957–60; research-station nutrition → upper bound) | **0.27** |
+| Sheep | 0.43–0.52 | **Soay** lamb ≈ **50% of dam by August** (~4mo; feral, unfed) | **0.48** |
+
+The achieved-weight analogues **bracket the derivation from above** — correct,
+since both are better-fed than medieval stock. (Brody assumes maximal growth
+*at birth* and so mildly over-states young weight; a Gompertz fit with an
+inflection would sit slightly lower — i.e. these are conservative-to-central,
+not optimistic.) Old-age-cull animals take the full Pals weight (frac = 1.0).
+
+#### 4.9.5 Yields and steady-state totals (Pals zooarchaeological factors)
+
+Per-animal yields ([J.P. Pals](#), via user): cow 250kg → 65 meat / 31 offal /
+25 fat (kg); sheep 30kg → 7.8 / 3.75 / 3.0. Young animals yield `frac ×` these.
+
+| | Meat (kg) | Offal (kg) | Fat (kg) |
+|---|---|---|---|
+| Cattle (14.30 young @0.27 + 9.11 full) | 843.4 | 402.2 | 324.4 |
+| Sheep (1.63 young @0.48 + 16.27 full) | 133.0 | 63.9 | 51.2 |
+| **Total annual cull** | **976.4** | **466.2** | **375.5** |
+
+#### 4.9.6 Residual uncertainties — [flagged]
+
+- **Single biggest lever is the old-age cull headcount**, not the young weight:
+  the surplus-young cohort is culled so light that the YOUNG_FRAC band
+  (cattle 0.25–0.30, sheep 0.43–0.52) moves the §6.2 cap by only ±2.5%.
+- The Pals factors are tied to a 250kg "average cow"; §5.2.1 uses a 400kg cow /
+  500kg ox for *feed* purposes. The two serve different roles (yield vs.
+  intake) but the size mismatch is noted for a future reconciliation pass.
+- A single Pals cow factor is applied to both sexes of cattle (no separate
+  ox/bull yield was given).
 
 ---
 
@@ -900,22 +1014,33 @@ Open (future batch): milk→cheese conversion ratio and the storage
 profile of cheese vs. raw milk (spoilage rates differ — see §9); wool→cloth
 conversion rate and the spinning-capacity parameter's value and seasonality.
 
-### 6.2 Meat-product consumption cap and preservation — [AGREED preservation rules; PLACEHOLDER cap]
+### 6.2 Meat-product consumption cap and preservation — [DERIVED cap; AGREED preservation rules]
 
-**Maximum monthly meat-product consumption cap — [AGREED, placeholder value]**:
+**Maximum monthly meat-product consumption cap — [DERIVED, §4.9]**:
 
 ```
-mealCap_per_capita = 12 kg / person / month
+cap_value          = offal_kg + (2/3)·meat_kg + (1/2)·fat_kg
+mealCap_per_capita = cap_value / population
+```
+
+Applying the §4.9.5 steady-state cull totals (meat 976.4, offal 466.2, fat
+375.5 kg) for the standard village (pop 90):
+
+```
+cap_value          = 466.2 + (2/3)·976.4 + (1/2)·375.5 = 1304.9 kg
+mealCap_per_capita = 1304.9 / 90 ≈ 14.5 kg / person / month
 ```
 
 This is a solver-layer ceiling: no more than `mealCap_per_capita × population`
 kg of meat-product (meat + the fat fraction bound to it, see below) may be
 *consumed* in a single month, regardless of how much is in store. It is **not**
-a statement of total annual production. The originally-intended derivation
-(steady-state winter-cull headcount × Pals zooarchaeological yields ÷
-population, weighted `offal + ⅔×meat + ½×fat`) is **deferred to §4.9** pending
-the full month-by-month cohort/growth model; **12 kg/person/month is a round
-placeholder** standing in for that derivation until it exists.
+a statement of total annual production. The `⅔ meat / ½ fat` weighting reflects
+the preservation/binding rules below (only part of each can be stored or
+separated). **14.5 kg/person/month replaces the prior 12 kg placeholder** and
+is now derived end-to-end from §4.9; the figure is robust to ±2.5% across the
+full §4.9.4 weight-fraction band (14.2–14.9 kg). The closeness of the
+independently-chosen 12 kg placeholder to the derived 14.5 kg is a sanity
+check, not a coincidence to rely on.
 
 **Preservation rules — [AGREED]** (apply to the cull's meat/offal/fat output):
 
@@ -946,16 +1071,150 @@ requirement; numeric spoilage rates for tallow/salted offal/salted meat
 
 ---
 
-## 7. Human Diet & Demand — PENDING
+## 7. Human Diet & Demand
 
-Candidate starting points exist (`[CARRIED OVER]`, not yet ratified):
-- Per-capita daily kcal by demographic: male 2500, female 2000, child 1600
-  (`defaults.ts`)
-- Diet composition / food-priority order and caps (bread, ale ≤20%, dairy,
-  meat ≤15%, gruel) — `SIMULATION_MODEL.md` §7, `ASSUMPTIONS.md` §1.4. Note:
-  some of these caps (e.g. the ale demand range) may belong to the
-  decision-making layer rather than the physical I/O model — to be examined
-  when this batch is reached.
+### 7.1 Per-capita caloric requirements — [AGREED]
+
+Ratified as-is from `defaults.ts`:
+
+| Demographic | kcal/day |
+|---|---|
+| Adult male | 2,500 |
+| Adult female | 2,000 |
+| Child | 1,600 |
+
+These are standard dietary-energy figures for the respective body-weight/
+activity classes; caloric *need* is physiology, not period, so no medieval-
+specific adjustment is sourced or applied. `getDailyKcalRequirement`/
+`getAnnualKcalRequirement`/`getMonthlyKcalRequirement` (`simulation.ts:406–420`)
+consume these values unchanged.
+
+### 7.2 Ale & draff — physical barley→ale/draff conversion — [AGREED]
+
+**Scope split (per the "split it" direction, retained)**: the *demand-side*
+question — what fraction of a person's monthly calories should come from ale,
+i.e. the existing `≤20%` target (`D2`, `ASSUMPTIONS.md` §1.4) — remains a
+rationing/decision-layer **lever**, exactly like `permanentPastureAcres`/
+`splitFraction` (§0.3): a future planner *sets* it, it is not a physical fact,
+and its value is **not** specified here. What this document specifies is the
+**physical conversion** that planner's choice acts through.
+
+**[AGREED — R7, supersedes an earlier volume-based draft]**: an earlier draft
+of this subsection derived `aleKcalPerBushelBarley` from a brewing-yield
+figure (7.5 gal ale/bushel, from 1333-34 Clare-household accounts: 60 gal per
+8-bushel quarter) times ale's *drinking* caloric density (~100 kcal/pint,
+explicitly called "debated" by its own source), giving only 6–12% of the
+grain's bread-grain value. That figure is **rejected**: malting and brewing
+instead **partitions** a bushel of barley's gross caloric content (75,000
+kcal/bu, §2.2) roughly **50/50** between two output streams — the partition
+framing accounts for **all** of the grain's energy, not just what ends up in
+the liquid that is drunk:
+
+| Output stream | kcal/bu (of input barley) | Form | Storable? |
+|---|---|---|---|
+| **Ale** (`aleKcalPerBushelBarley`) | **37,500** (50%) | Liquid, human-consumed | Per §9 (open, see below) |
+| **Draff** (`draffKcalPerBushelBarley`) | **37,500** (50%) | Wet spent grain, animal feed | **No** — must be fed out the same month it's produced |
+
+This is consistent with malting/brewing being primarily a **mass partition**
+(wort/ale fraction vs. spent-grain fraction) with comparatively modest true
+energy loss to the fermentation process itself — ethanol (~7 kcal/g) is more
+energy-dense per gram than the starch/sugar fermented to produce it, which
+offsets much of the mass/energy carried away as CO₂.
+
+**Production pattern — [AGREED]**: barley is malted and brewed **continuously
+throughout the year** at a smooth rate (not seasonally/batch), drawn from the
+storable barley stock (§9, ~0.7%/month spoilage) — this provides a steady ale
+supply rather than one tied to the harvest calendar.
+
+**Draff as a feed input — [DERIVED, new §5 feed-ledger entry]**: every bushel
+of barley brewed yields 37,500 kcal of draff, added to that **same month's**
+animal-feed supply (§5.1's kcal currency) as a non-storable supplement —
+unlike hay/oats/straw, any draff not consumed by livestock within the month
+it is produced is **lost**, not carried to stock. The amount of draff
+available in a given month is directly proportional to that month's
+barley-to-ale throughput (itself a function of the decision layer's ale-share
+target and the consumption shape below) — full integration into the §5
+feed-balance ledger (which animals draw on draff, in what priority) is a
+near-term follow-up once §5 is revisited, but the conversion factor itself is
+recorded here as it is squarely physical.
+
+**Consumption shape — [AGREED]**: ale consumption is **not** flat across the
+year — winter consumption runs **up to 50% higher** than the summer baseline
+(bounded above by whatever overall annual ale-share target the decision layer
+sets, §7.4). The annual *target share* (`≤20%` etc.) remains a decision-layer
+parameter (per the scope split above); this records only its **seasonal
+shape**, in the same spirit as §4.1/§4.3's winter dairy ×0.35 factor (§7.3)
+and §0.2's fuel seasonal-demand scaling (D9) — both already-accepted examples
+of seasonally-shaped *demand* being in-scope for this document.
+
+Open (future batch, §9): ale's own spoilage/storage profile (is brewed ale
+storable across months, or does it follow a faster "small beer doesn't keep"
+curve?) — not yet specified; draff's "no storage, same-month only" rule above
+does not depend on this.
+
+### 7.3 Dairy availability — reconciled with §4.1/§4.3 lactation curves — [AGREED, R7 resolved]
+
+`ASSUMPTIONS.md` §1.4 records two dairy-availability rules from an earlier
+code state:
+- **D5**: "Dairy output from cows: 0% before 36 months, 50% between 36–48
+  months, 100% at 48+ months" (cited as `simulation.ts:388–392`).
+- **D7**: "Winter dairy output is 35% of summer output for both cows and
+  sheep" (cited as `simulation.ts:102, 397`).
+
+Checked against the **current** `simulation.ts` [EXECUTED — grep across the
+whole file for `lactationMonths`/age-banded milk multipliers]:
+
+- **D5 is absent.** The cited lines (388–392, and the file as a whole)
+  contain no 36/48-month age-banded milk-output multiplier. Dairy output is
+  driven *entirely* by `c.lactationMonths`/`s.lactationMonths` via
+  `cowMilkKcal()`/`eweMilkKcal()` (`simulation.ts:493–505` — the §4.1/§4.3
+  lactation curves: cow peak at month 3 post-weaning declining to dry at
+  month 10; ewe full yield months 1–2, half months 3–4). `lactationMonths` is
+  set to 1 only on a successful birth, itself gated by the §4.1/§4.3
+  breeding-age thresholds (cow/bull 24mo, ewe/ram 12mo) and the §4.8
+  conception model — **not** by age 36/48mo. **D5 is stale/superseded** by a
+  prior code refactor and should be removed from `ASSUMPTIONS.md` (R7).
+- **D7 is present and retained.** `simulation.ts:1173,1179`:
+  `dairyKcal += isWinter ? raw * 0.35 : raw`, applied on top of the §4.1/§4.3
+  lactation-curve output for both cow and ewe milk — compatible with (not in
+  conflict with) the lactation curves.
+
+**Resolution**: §4.1 + §4.3's lactation curves (already [AGREED]) **plus**
+the D7 winter-×0.35 factor (retained) together **constitute the complete
+dairy-availability rule**: monthly milk kcal = lactation-curve value ×
+(0.35 if `isWinter`, else 1). No new parameter is introduced. `ASSUMPTIONS.md`
+D5 is flagged for removal as describing a no-longer-existent code path.
+
+### 7.4 Diet composition, food-priority order & consumption caps — decision-layer (out of scope here) — [DERIVED]
+
+`ASSUMPTIONS.md` §1.4 also records:
+- **D1**: consumption priority order — dairy → meat (≤15%) → ale/barley
+  (≤20%) → wheat → remaining barley → oats → extra meat → emergency sheep
+  slaughter.
+- **D3**: meat capped at 15% of monthly kcal under normal circumstances.
+
+Per §0.1, **the order in which stores are drawn down, and any target/cap
+expressed as "≤X% of monthly kcal," is a rationing decision** — the same
+category as the ale-share `D2` cap that §7.2 just placed in the
+decision-layer future seam (per the "split it" direction). By the same
+reasoning, D1's ordering and D3's 15% meat figure are **also** decision-layer
+parameters, not part of this physical model.
+
+What **is** physical, and **is** specified in this document, is the
+*ceiling* the decision layer allocates within:
+- §6.2's `mealCap_per_capita ≈ 14.5 kg/person/month` — the physical upper
+  bound on meat-product consumption (yield-derived from the §4.9 cull model).
+  It bounds whatever "meat share" policy the decision layer runs (formerly
+  D3's 15%), but is not itself that policy.
+- §7.2's `aleKcalPerBushelBarley` — the physical conversion the decision
+  layer's ale-share policy (formerly D2's 20%) must apply when deciding how
+  much barley to brew.
+- §4.1/§4.3 + D7 (§7.3) — the physical dairy supply the decision layer's
+  consumption order draws from.
+
+This subsection makes no further claims here: D1/D2/D3 are flagged for
+removal/relocation from `ASSUMPTIONS.md` into the future decision-making
+model's specification once it exists.
 
 ---
 
@@ -1029,4 +1288,14 @@ rationale) and for straw, wool, and cloth (currently zero/undocumented per
 | 2026-06-13 | §4.6 | Added `wether` as a third sheep type: most male lambs become wethers (wool/mutton), with `ewesPerRam≈40` determining how many remain entire as breeding rams | Castrated wethers were historically the dominant component of medieval English wool flocks (better/more wool, easier management) — more accurate than a ram-population cap, and explains where surplus male lambs go |
 | 2026-06-13 | §4.9 | Steady-state offtake/cull model deferred to a future batch; full model must track cohorts by month with a medieval-realistic per-month weight-growth curve | A seasonal-conception derivation gave an implausible 0.917 calvings/cow/yr (exceeds well-managed *modern* rates); a single-snapshot steady-state calc can't honestly resolve cull headcount, timing, and weight together — needs proper monthly cohort tracking |
 | 2026-06-13 | §6.2 | Meat-product consumption cap set to placeholder 12 kg/person/month; fat/offal/meat preservation rules (50% fat bound to meat, remaining fat rendered w/ 20% loss, ≤20% offal & ≤50% meat preservable, all vs. grain spoilage baseline) recorded as [AGREED] | Cap derivation depends on the deferred §4.9 cull model; preservation fractions are user-specified inputs for the solver and don't depend on that derivation |
+| 2026-06-14 | §4.8.1 | Conception probabilities recalibrated and re-keyed to season *type* (not calendar): cattle 16.2% growing / 8.1% winter month → 0.667/yr; sheep 40.6% `autumn`-type / 5.95% other → 0.88/yr. Derived by discounting cited modern rates (×0.294 cattle, ×0.541 sheep) and back-solving to the annual targets via the renewal-chain steady state. **Supersedes** the 2026-06-13 §4.9-deferral entry's "needs sourcing" caveat and the prior fixed-calendar "Sep–Jan/Feb–Aug" sheep framing | Undiscounted modern rates (55%/75%) implied >1 birth/female/yr (impossible); fixed-calendar windows broke the variable-G/W design. Season-type keying keeps the sheep rut a fixed window under arbitrarily long winters |
+| 2026-06-14 | §4.8.4 | Annual fertility targets anchored: cattle 0.667/yr (spring-calving seasonal breeder, ~18mo interval, below modern AI rates), sheep 0.88/yr (decomposed from medieval "≈0.7 lambs reared" ÷ 0.80 survival). Sheep are *more* fertile/yr than cattle | Different reproductive constraints (cattle interval-limited by 9mo gestation + winter condition; sheep photoperiod-locked to a comfortable annual cycle by 5mo gestation) — a single shared rate was biologically wrong |
+| 2026-06-14 | §4.9 | Steady-state offtake model **completed** (supersedes 2026-06-13 deferral): cull young-to-save-feed; standard village annual cull ≈23.4 cattle + 17.9 sheep → 976/466/376 kg meat/offal/fat. Young weight-at-cull derived via Brody curve (cattle 0.27, sheep 0.48) anchored on birth% + agreed breeding ages, corroborated by achieved weights of unimproved analogues (Highland cattle 34% at ~7mo, Soay lamb ~50% by Aug) | A single-snapshot steady state *is* sufficient once fertility (0.667/0.88) is fixed and weight is derived rather than guessed; Brody self-validates (recovers modern K=6%/mo from a modern breeding age) |
+| 2026-06-14 | §4.9.3/§4.6 | Steady-state sheep composition derived as ≈25 ewes / ≈1 ram / ≈54 wethers (wool economy, minimal ewe flock + 10% lamb safety margin), wether turnover ~42mo | Sheep exist for wool not milk; ewe flock sized only to self-replace. Confirms §4.6's "wethers dominant" within its 3–4yr turnover range |
+| 2026-06-14 | §6.2 | `mealCap_per_capita` placeholder (12 kg/person/month) replaced by derived value ≈14.5 kg/person/month (1304.9 kg cap_value ÷ 90 people), robust ±2.5% | Derived end-to-end from §4.9's cull totals via `cap_value = offal + (2/3)·meat + (1/2)·fat`; the closeness to the old 12 kg placeholder is a sanity check, not a basis |
+| 2026-06-14 | §7.1 | Per-capita kcal/day (male 2500 / female 2000 / child 1600) ratified as-is, no medieval-specific adjustment | Caloric need is physiology, not period; figures are already standard dietary-energy values for the respective demographic classes |
+| 2026-06-14 | §7.3 | Dairy availability = §4.1/§4.3 lactation curves × (0.35 if winter, else 1); `ASSUMPTIONS.md` D5 (36/48mo age-banded milk %) flagged as stale/superseded, D7 (winter ×0.35) retained | Grep of current `simulation.ts` shows milk output driven solely by `lactationMonths` via `cowMilkKcal`/`eweMilkKcal`, gated by the §4.1/§4.3 breeding ages — D5's age bands no longer exist in code; D7 is present and compatible |
+| 2026-06-14 | §7.2 | Ale/draff: barley→ale/draff is a 50/50 kcal partition (37,500/37,500 of the 75,000 kcal/bu bread-grain value), not a lossy 6–12% conversion; draff is a new non-storable same-month animal-feed byproduct; brewing is continuous year-round; ale consumption runs up to 50% higher in winter (bounded by the decision-layer's annual ale-share target) | User-directed correction (R7): the prior volume-based derivation (7.5 gal/bu × ~100 kcal/pint ⇒ 6–12%) relied on ale's "debated" drinking-density figure; the partition framing accounts for all of the grain's energy (ale + draff), consistent with brewing being primarily a mass split with modest true fermentation loss |
+| 2026-06-14 | §7.4 | D1 (priority order) and D3 (15% meat kcal-share) confirmed as decision-layer/rationing parameters, out of scope for this document; §6.2/§7.2/§4.1+4.3 supply the physical ceilings those policies must respect | Same reasoning the user already accepted for D2 (ale-share %, "split it") applies symmetrically to D1/D3 — consumption ordering and %-of-kcal caps are rationing choices, not physical facts |
+| 2026-06-14 | §6.2 | Meat-product consumption cap derived: `(offal + ⅔ meat + ½ fat)/pop = 1304.9/90 ≈ 14.5 kg/person/month`, replacing the 12 kg placeholder (robust to ±2.5% over the weight-fraction band) | Now derived end-to-end from §4.9; the placeholder's closeness (12 vs 14.5) is a sanity check |
 
