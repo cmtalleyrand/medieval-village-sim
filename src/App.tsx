@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Map, ScrollText, BookOpen, RotateCcw } from 'lucide-react';
+import { Map, ScrollText, BookOpen, RotateCcw, Shield } from 'lucide-react';
 import { SimPanel } from './components/SimPanel';
+import { CoatOfArmsApp } from './components/heraldry/CoatOfArmsApp';
 import { Assumptions } from './components/Assumptions';
 import { DEFAULTS } from './lib/defaults';
 import { SimParams } from './lib/simulation';
 
-type Tab = 'overview' | 'chronicle' | 'almanac';
+type Tab = 'overview' | 'chronicle' | 'almanac' | 'armory';
 
 function App() {
   const [tab, setTab] = useState<Tab>('overview');
@@ -41,6 +42,7 @@ function App() {
               <TabBtn active={tab === 'overview'} onClick={() => setTab('overview')} icon={<Map className="w-3.5 h-3.5" />} label="Council" />
               <TabBtn active={tab === 'chronicle'} onClick={() => setTab('chronicle')} icon={<ScrollText className="w-3.5 h-3.5" />} label="Chronicle" />
               <TabBtn active={tab === 'almanac'} onClick={() => setTab('almanac')} icon={<BookOpen className="w-3.5 h-3.5" />} label="Almanac" />
+              <TabBtn active={tab === 'armory'} onClick={() => setTab('armory')} icon={<Shield className="w-3.5 h-3.5" />} label="Armory" />
             </nav>
           </div>
         </div>
@@ -51,6 +53,8 @@ function App() {
       <main className="max-w-[1400px] mx-auto px-5 py-5">
         {tab === 'almanac' ? (
           <Assumptions />
+        ) : tab === 'armory' ? (
+          <CoatOfArmsApp />
         ) : (
           <SimPanel view={tab as 'overview' | 'chronicle'} params={params} setParams={setParams} />
         )}
