@@ -763,13 +763,16 @@ cow:ox replacement-need ratio 4.00:4.91). Full-weight-equivalent animals:
   the prior single-cow-factor-for-both-sexes simplification. The 48% usable
   fraction (meat/offal/fat of liveweight) is unchanged; only the male
   bodyweight anchor was raised (×1.2).
-- **Remaining inconsistency flagged for future reconciliation**: §5.2.1's
-  *feed* bodyweights (cow 400kg / ox 500kg) and §4.9.5's *yield* liveweights
-  (cow 250kg / bull-ox 300kg) describe the **same animals** at different
-  weights. This is a genuine internal inconsistency (a cow has one liveweight),
-  not merely "different statistics," and should be unified when feed and yield
-  are reconciled — the medieval-cattle-liveweight literature spans ~250–400kg.
-  Logged, not resolved here, per user direction to proceed.
+- **[RESOLVED 2026-06-15]** §5.2.1's *feed* bodyweights are now **unified**
+  with §4.9.5's *yield* liveweights — cow 250kg, ox/bull 300kg in both
+  sections — resolving the inconsistency previously flagged here (the same
+  animal no longer has two different liveweights). The mechanical effect of
+  the bodyweight cut on Kleiber-derived BMR (§5.2.2) is offset by holding the
+  cattle winter kcal targets at their pre-unification absolute values (cow
+  15,650 kcal/day, ox/bull 18,500), per user direction that historical cattle
+  consumed no less than modern breeds despite being smaller. Knock-on effect:
+  cattle now sit at ≈100% of the §5.2.4 DM ceiling (was 60–63%) — the same
+  regime as sheep; see §5.2.4/§5.2.6.
 
 ---
 
@@ -812,7 +815,7 @@ activity-level chain that is **species-parameterized** so a future species
 (e.g. horses, which have different DM%BW ceilings and digestive physiology)
 can be added by adding a row, not by restructuring the model.
 
-#### 5.2.1 Reference bodyweights — [AGREED] (cow 400 kg confirmed)
+#### 5.2.1 Reference bodyweights — [AGREED 2026-06-15] (unified with §4.9.5 yield liveweights: cow 250 kg / ox-bull 300 kg)
 
 Bodyweights are anchored to **living unimproved-breed analogues at the
 zooarchaeologically-attested medieval withers height**, not to modern improved
@@ -827,10 +830,10 @@ stood ~**57–60 cm** ([Cameron et al., *Internet Archaeol.* 52](https://intarch
 bracketing the primitive **Shetland ewe (~35–45 kg)** below and the improved
 **Southdown ewe (~60 cm, 59–68 kg)** above.
 
-| Animal | Bodyweight (kg) | Basis (living analogue at medieval withers height) |
+| Animal | Bodyweight (kg) | Basis |
 |---|---|---|
-| Ox / working bull | 500 | Castrated males / bulls carry more frame than cows and draught oxen were selectively the largest available; 500 kg sits between the Highland cow (450) and Highland bull (650), at the top of the medieval-sized band. |
-| Cow (mature, dairy/dual-purpose) | 400 | Between the Dexter cow (325) and Highland cow (450) at ~105–110 cm withers; leans to the lower/unimproved end since non-draught cows were not size-selected. **Could defensibly be 450** (full Highland-cow analogue) — see decision note. |
+| Ox / working bull | 300 | **Unified with §4.9.5's yield-liveweight anchor** (bulls/oxen 300 kg = cow's 250 kg ×1.2 male uplift, per user). Resolves the §4.9.6-flagged inconsistency between this section's prior 500 kg feed-anchor and §4.9.5's 300 kg yield-anchor for the same animal. Sits within the medieval-cattle-liveweight literature's ~250–400 kg span (§4.9.6), below the Dexter–Highland band (325–450) used in the prior anchor — i.e. toward the smaller, "stunted" end of attested medieval variation. |
+| Cow (mature, dairy/dual-purpose) | 250 | **Unified with §4.9.5's yield-liveweight anchor** (cow 250 kg, the Pals-derived figure, per user). Resolves the same §4.9.6-flagged inconsistency (prior 400 kg feed-anchor vs. 250 kg yield-anchor for the same animal). Sits at the bottom of the ~250–400 kg medieval literature span — a genuinely smaller animal than the Dexter–Highland (325–450) anchor used previously, consistent with the "small and stunted" zooarchaeological framing above. |
 | Ram | 55 | A ram carries ~35–40% more frame than an ewe of the same breed; 55 kg sits above the Shetland-analogue ewe to reflect that, while staying well below improved post-medieval rams (Cotswold/Lincoln 120–160 kg are 18th–19th c. products). |
 | Ewe | 40 | Shetland ewe (~35–45 kg) is the closest living analogue to unimproved medieval wool sheep at the attested 57–60 cm withers; a stunted/slender medieval ewe weighs less than a compact improved Southdown of the same height, so 40 kg leans to the middle of the Shetland band. |
 | Wether | 50 | Between ewe and ram — castrated males grow a larger frame than ewes but lack a ram's continued masculine growth. |
@@ -841,12 +844,23 @@ bodyweight figures — the existing age-multiplier tiers in §5.2.3 scale the
 animal's lower absolute requirement is approximated via the age multiplier
 rather than via an explicit growth curve).
 
-**[AGREED 2026-06-14]**: cow confirmed at **400 kg** (unimproved-leaning, the
-Dexter–Highland midpoint); ox 500 / ram 55 / ewe 40 / wether 50 confirmed as
-listed. Residual uncertainty is ±~10–15% (bounded by the analogue spread, e.g.
-cow 325–450 kg) — should higher-resolution medieval liveweight data later
-warrant a shift (e.g. cow → 450, the full Highland-cow analogue), every figure
-below rescales mechanically off this table.
+**[AGREED 2026-06-15]**: cattle feed bodyweights are now **unified with the
+§4.9.5 yield liveweights** — cow 250 kg, ox/bull 300 kg — resolving the
+inconsistency flagged in §4.9.6 (the prior 400/500 kg feed-anchor and the
+250/300 kg yield-anchor described the *same animals* at two different
+weights; a cow has one liveweight). Ram 55 / ewe 40 / wether 50 are
+**unchanged** — out of scope for this unification, since no equivalent
+inconsistency was flagged for sheep (§4.9.5's 30 kg sheep figure is a single
+cull-yield approximation across rams/ewes/wethers/lambs, not a per-sex feed
+bodyweight anchor).
+
+The ~38% bodyweight cut mechanically reduces Kleiber BW^0.75 by a factor of
+~0.70 (§5.2.2), which — taken alone — would cut predicted feed demand by
+~30%. The user's direction is that **historical cattle consumed no less than
+modern breeds despite being smaller**; §5.2.2's activity-factor derivation is
+revised below to reflect this (a smaller, less-improved animal sitting at a
+*higher* point on the same published maintenance-ME range, rather than a
+straight Kleiber rescale).
 
 #### 5.2.2 Base metabolic energy requirement — Kleiber's law
 
@@ -857,40 +871,41 @@ law, a standard zoological/physiological relationship, not medieval-specific):
 BMR (kcal/day) = 70 × BW(kg)^0.75
 ```
 
-| Animal | BW (kg) | BMR (kcal/day) |
-|---|---|---|
-| Ox/bull | 500 | 7,400 |
-| Cow | 400 | 6,260 |
-| Ram | 55 | 1,410 |
-| Ewe | 40 | 1,110 |
-| Wether | 50 | 1,320 |
+| Animal | BW (kg) | BW⁰·⁷⁵ | BMR (kcal/day) |
+|---|---|---|---|
+| Ox/bull | 300 | 72.1 | 5,040 |
+| Cow | 250 | 62.9 | 4,400 |
+| Ram | 55 | 19.8 | 1,410 |
+| Ewe | 40 | 15.9 | 1,110 |
+| Wether | 50 | 18.5 | 1,320 |
 
-**`WINTER_ACTIVITY_FACTOR` = 2.5×BMR — [DERIVED, validated against measured
-maintenance ME]** — the energy multiple for a non-pregnant, non-lactating
-adult in winter (cold exposure, routine activity, no grazing). This is **not**
-a free pick: published suckler-cow maintenance metabolizable-energy is
-**0.596 MJ/kg⁰·⁷⁵/day** (mean; range 0.389–0.796) ([*Energy Requirements of
-Beef Cattle*, MDPI *Animals* 2021](https://www.mdpi.com/2076-2615/11/6/1642)).
-For a 400 kg cow (BW⁰·⁷⁵ = 89.4): 0.596 × 89.4 = 53.3 MJ/day ≈ **12,700 kcal
-ME/day** at thermoneutral maintenance — i.e. **≈2.0×BMR** (12,700 ÷ 6,260).
-Adding the standard cold-stress increment for an unhoused winter animal below
-its lower critical temperature (~+20–30%, [NRC *Effect of Environment on
-Nutrient Requirements*](https://www.ncbi.nlm.nih.gov/books/NBK232316/)) lands
-at **≈2.4–2.6×BMR** — so **2.5×BMR is the measured cold-stressed maintenance
-of a real dry cow**, not a guess. It also leaves headroom for the §5.2.3
-multipliers (pregnancy/lactation/deep-winter) to compose toward — but not past
-— the ~5×BMR ceiling associated with sustained peak lactation. The same 2.5×
-is applied across species absent species-specific cold-maintenance data; this
-is the proportional simplification flagged in §5.2.7 (a future species can
-override it).
+**`WINTER_ACTIVITY_FACTOR` — [AGREED 2026-06-15, cattle absolute target held
+constant]**. Per the user's direction — "historical cattle consumed no less
+than modern breeds despite being smaller" — the **cattle winter kcal targets
+are held at their pre-unification absolute values** (cow 15,650 kcal/day /
+469,500 kcal/month; ox/bull 18,500 / 555,000), rather than re-derived by
+applying 2.5× to the new, smaller BMR (which would mechanically cut them by
+~30%, to 11,000/330,000 and 12,600/378,000 — rejected, per the same
+direction). Sheep (ram/ewe/wether) keep their original **2.5×BMR** figures
+unchanged — their bodyweights did not move.
 
-| Animal | Base winter kcal/day (BMR × 2.5) | Base winter kcal/month |
-|---|---|---|
-| Ox/bull | 18,500 | 555,000 |
-| Cow | 15,650 | 469,500 |
-| Ram | 3,530 | 105,900 |
-| Ewe | 2,780 | 83,500 |
-| Wether | 3,290 | 98,700 |
+Holding cattle's absolute target constant against a smaller BMR raises the
+*implied* activity multiple: **cow 15,650 ÷ 4,400 ≈ 3.56×BMR**, **ox/bull
+18,500 ÷ 5,040 ≈ 3.67×BMR** (vs. sheep's unchanged 2.5×). This is the
+numerical expression of "smaller but no less-feeding": the historical animal
+sits at a higher maintenance-energy-per-unit-metabolic-bodyweight than the
+modern reference cattle that the Kleiber coefficient (70) and the published
+0.389–0.796 MJ/kg⁰·⁷⁵/day maintenance-ME range (§5.2.2 prior derivation,
+Appendix C) were fit to — i.e. a less feed-efficient breed, consistent with
+the user's framing. No further re-derivation of this multiple is sought.
+
+| Animal | Base winter kcal/day | Base winter kcal/month | Implied ×BMR |
+|---|---|---|---|
+| Ox/bull | 18,500 | 555,000 | 3.67× |
+| Cow | 15,650 | 469,500 | 3.56× |
+| Ram | 3,530 | 105,900 | 2.5× |
+| Ewe | 2,780 | 83,500 | 2.5× |
+| Wether | 3,290 | 98,700 | 2.5× |
 
 #### 5.2.3 Multiplier table — [AGREED, carried over from Batch 4 derivation]
 
@@ -913,6 +928,18 @@ to the §5.2.2 base:
 ceiling. ✓ These multipliers already align with the §4 reproductive-biology
 timelines agreed in Batch 4 and require no change.
 
+**Cattle addendum [2026-06-15]**: with §5.2.2's cattle base now expressed as
+~3.56–3.67×BMR(new) rather than 2.5×BMR(old), the worst case for cattle
+(pregnant cow, deep winter) = ~3.56×1.3×1.25 ≈ **5.79×BMR(new)** — nominally
+above the ~5×BMR figure. This is a **relabeling artifact, not a real
+increase**: the absolute worst-case figure (cow 15,650×1.3×1.25 ≈ 25,430
+kcal/day) is unchanged from the pre-unification value, since the §5.2.2
+cattle base itself was held constant. Against the *old* (larger) BMR,
+25,430÷6,260 ≈ 4.06×, i.e. it never moved — the ~5×BMR "ceiling" was
+calibrated to the old 400 kg BMR and simply doesn't translate cleanly to the
+new, smaller BMR denominator. Sheep are unaffected (BW unchanged, factor
+still 2.5×, worst case 4.06×BMR as before).
+
 #### 5.2.4 DM intake ceiling — [AGREED]
 
 A second, independent constraint: ruminants can only physically process a
@@ -925,23 +952,25 @@ independent of how many kcal that bulk supplies).
 
 | Animal | BW (kg) | DM ceiling (kg/day) | DM ceiling (kg/month) |
 |---|---|---|---|
-| Ox/bull | 500 | 15.0 | 450 |
-| Cow | 400 | 12.0 | 360 |
+| Ox/bull | 300 | 9.0 | 270 |
+| Cow | 250 | 7.5 | 225 |
 | Ram | 55 | 1.65 | 49.5 |
 | Ewe | 40 | 1.20 | 36 |
 | Wether | 50 | 1.50 | 45 |
 
-**Self-consistency cross-check**: an ewe's §5.2.2 base ration (83,500
-kcal/month), if supplied entirely from hay (2,160 kcal/kg DM), requires
-≈38.7 kg DM/month — vs. a 36 kg/month ceiling, i.e. ≈108% of ceiling. For
-cattle, the equivalent all-hay figures (257 kg DM/month for an ox vs. a
-450 kg ceiling; 217 kg vs. 360 kg for a cow) sit comfortably under ceiling.
-This is the expected pattern: **sheep are gut-fill-bound** (their ration is
-capped by bulk, not energy) while **cattle are energy-bound** (their ration
-is capped by kcal need, with DM capacity to spare) — a real, documented
-distinction in ruminant nutrition, and a good sign that the BW=40kg/factor=2.5
-combination for sheep is close to the physical limit rather than wildly off
-in either direction.
+**Self-consistency cross-check — [updated 2026-06-15]**: cutting cattle
+bodyweight to 250/300 kg cuts the (linear-in-BW) DM ceiling by ~38–40%
+(360→225 cow, 450→270 ox/bull), while §5.2.2's kcal targets were **held
+constant** (469,500 / 555,000 kcal/month) per the "no less than" direction.
+The all-hay DM equivalent is therefore unchanged in absolute terms (217.4 kg
+cow, 257.0 kg ox/bull) but now sits at **96.6% / 95.2% of the new ceiling** —
+up from 60% / 57% against the old 360/450 ceilings. **Cattle move from
+"comfortably under ceiling, energy-bound with bulk headroom" to near the
+gut-fill limit — much closer to the sheep regime** (ewe still tightest at
+108%, unchanged). This is a direct, mechanical consequence of the bodyweight
+unification + held-constant kcal target (both per explicit user direction),
+logged here as a significant downstream effect on §5.3's winter-grazing/hay
+headroom for cattle — not an open decision.
 
 #### 5.2.5 R7/R9 — Surfaced finding: carried-over figures imply ~2.4× this derivation
 
@@ -962,18 +991,18 @@ never having been derived from bodyweight at all.
 **Two independent disqualifying arguments against the carried-over figures**
 (not merely "they look high"):
 
-1. **Energy.** A cow's carried-over ration (38,530 kcal/day) is **3.0× the
-   measured thermoneutral maintenance** of a 400 kg suckler cow (12,700
-   kcal/day, §5.2.2) and **2.5× even the cold-stressed winter figure** (15,650
-   kcal/day). 3× maintenance, sustained all winter on a *dry* animal, has no
+1. **Energy.** A cow's carried-over ration (38,530 kcal/day) is **2.5× the
+   §5.2.2 cold-stressed winter target** (15,650 kcal/day, unchanged by the
+   2026-06-15 bodyweight unification — §5.2.2). Sustaining 2.5× the
+   cold-stressed maintenance figure all winter on a *dry* animal has no
    physiological basis.
 2. **Gut capacity — decisive, and independent of energy.** The carried-over
-   **2 cartloads of hay/month = 500 kg DM/month = 16.7 kg DM/day**. A 400 kg
-   cow's physical dry-matter intake ceiling is ~3%BW = **12 kg DM/day = 360
-   kg/month** (§5.2.4). The hay ration *alone* is **139% of the cow's intake
+   **2 cartloads of hay/month = 500 kg DM/month = 16.7 kg DM/day**. A 250 kg
+   cow's physical dry-matter intake ceiling is ~3%BW = **7.5 kg DM/day = 225
+   kg/month** (§5.2.4). The hay ration *alone* is **~222% of the cow's intake
    ceiling** — before adding the 2 bu of oats. **A medieval-sized cow cannot
    physically eat the carried-over ration**, regardless of its energy content.
-   (Ox: carried-over hay 500 kg/month vs. a 450 kg/month ceiling = 111%, plus
+   (Ox: carried-over hay 500 kg/month vs. a 270 kg/month ceiling = ~185%, plus
    3 bu oats — also over ceiling.)
 
 **Resolution (user decision needed, but argument 2 forecloses option (b))**:
@@ -1000,15 +1029,28 @@ then reduces the hay component for stock that winter-graze:
 
 | Animal | Oats (bu/month) | Hay (cartloads/month) | kcal/month | DM (kg/month) | vs. DM ceiling |
 |---|---|---|---|---|---|
-| Ox/bull | 1.5 | 1.0 | 597,000 | 269.5 | 60% |
-| Cow | 1.0 | 0.85 | 497,000 | 226 | 63% |
+| Ox/bull | 1.5 | 1.0 | 597,000 | 269.5 | 100% (269.5/270, was 60% pre-unification) |
+| Cow | 1.0 | 0.85 | 497,000 | 226 | 100% (226/225, was 63% pre-unification) |
 | Ram | 0 | 0.2 | 108,000 | 50 | 101% |
 | Ewe | 0 | 0.15 | 81,000 | 37.5 | 104% |
 | Wether | 0 | 0.18 | 97,200 | 45 | 100% |
 
-Sheep figures sit right at the DM ceiling (as expected per §5.2.4); cattle
-figures sit well under, with the kcal total close to the §5.2.2 derived
-baseline. **`feedNeedsWinter` would be replaced/extended with per-sex sheep
+**[Updated 2026-06-15]** Cattle now sit at the DM ceiling too (≈100%, up from
+60–63% under the pre-unification 360/450 kg ceilings — §5.2.4), the same
+regime as sheep — a direct, mechanical consequence of the bodyweight
+unification (smaller BW → smaller linear DM ceiling) combined with holding
+the kcal target constant (§5.2.2). The kcal totals are unchanged and remain
+close to the held-constant §5.2.2 base (497,000 vs. 469,500 cow; 597,000 vs.
+555,000 ox/bull — the existing ~6% buffer above base, now consumed almost
+entirely by the DM ceiling rather than left as headroom). No ration-recipe
+change is made here: the oats:hay split is unchanged, and a ~100% ceiling is
+not a violation (sheep have operated at 100–104% since the original
+derivation) — but cattle now have effectively **zero spare gut capacity for
+the §5.2.3 pregnancy/lactation/deep-winter multipliers**, which must be met
+via grazing offset (§5.3) or a higher oats:hay ratio (denser kcal/kg DM) at
+the point those multipliers actually apply, not via more hay. **This is a
+logged consequence for §5.3/§6.4, not a further open decision.**
+**`feedNeedsWinter` would be replaced/extended with per-sex sheep
 rows (ram/ewe/wether) instead of a single `sheepHay` figure**, consistent
 with §4.6's wether addition.
 
@@ -1781,4 +1823,7 @@ are **superseded** by the straw/wool rows above (R7).
 | 2026-06-14 | §4.7 | All-animal winter mortality [PROPOSED]→[AGREED], and reformulated from a single per-winter roll to a **MONTHLY hazard** (`m` per winter month, cumulative `1−(1−m)^W`): adult cattle 0.67%/2.74% per mo, juvenile cattle 1.01%/3.45%, adult sheep 1.01%/4.18%, lambs<12mo 2.74%/7.17% (well-fed/underfed), calibrated so `W=3` reproduces the accepted 2%/8%, 3%/10%, 3%/12%, 8%/20% seasonal levels. Winter-born lambs keep §4.5's one-time neonatal 30%/50% (not monthly). Feed branch evaluated per-month | Accepted as-is, then user-corrected: a per-winter roll wouldn't scale with winter length — the model's whole purpose is arbitrary-length winters/summers, so mortality must compound monthly. Deep-winter-specific uplift flagged as a future option, not imposed |
 | 2026-06-14 | §4.8 / §4.8.2 | Reproduction model [PROPOSED]→[AGREED]; male service-capacity caps ratified at bull 12/mo, ram 40/mo (both within cited literature ranges, non-binding at current herd ratios — a safeguard for disproportionate male culling) | User decision; caps are evidence-backed and low-stakes |
 | 2026-06-14 | §3.2 / §3.4 | Soil depletion `d` (wheat 0.040 / barley 0.028 / oats 0.022 / hay-aftermath 0.010) and recovery `r=0.11` deliberately **left [PROVISIONALLY CONSISTENT]**, not ratified | Their final calibration depends on the month-by-month rotation/activity ledger, which lives in the out-of-scope decision-making model; locking them here would be premature. Stable and usable as-is (f*≈0.60–0.66) |
+| 2026-06-15 | §5.2.1/§5.2.2/§4.9.6 | **Resolved** the §4.9.6-flagged feed-vs-yield bodyweight inconsistency: §5.2.1's cattle feed bodyweights now **unified** with §4.9.5's yield liveweights — cow 250kg (was 400), ox/bull 300kg (was 500); ram/ewe/wether unchanged (55/40/50, out of scope — no equivalent inconsistency flagged for sheep). New Kleiber BMR: cow 4,400 / ox-bull 5,040 kcal/day (was 6,260/7,400) | User direction: "make feed-weight the same as yield weight (not yield)" — the same animal can't have two liveweights |
+| 2026-06-15 | §5.2.2 | `WINTER_ACTIVITY_FACTOR`: cattle winter kcal targets **held at pre-unification absolute values** (cow 15,650 kcal/day / 469,500/mo; ox/bull 18,500 / 555,000/mo) rather than rescaled via Kleiber (which would cut them ~30% to 11,000/12,600). Implied multiple rises from 2.5×BMR to **cow 3.56×BMR, ox/bull 3.67×BMR** (sheep unchanged at 2.5×). An evidence-range re-derivation (upper-bound published ME 0.796 MJ/kg⁰·⁷⁵/day + cold stress → 3.26–3.54×) was offered via AskUserQuestion and explicitly declined by the user ("there is no bloody need to revisit this") | User direction: "historical cattle consumed no less than modern breeds despite being smaller" — read as holding absolute consumption constant, not as a license to re-derive the multiplier from first principles |
+| 2026-06-15 | §5.2.4/§5.2.6 | Knock-on consequence, logged not re-opened: cattle DM ceiling drops ~38–40% (360/450 → 225/270 kg/mo) while the kcal target is unchanged, so cattle now sit at **≈100% of the DM ceiling** (was 60–63%) — the same gut-fill-bound regime as sheep. Ration recipe (oats:hay split) left unchanged; near-zero spare gut capacity for §5.2.3 pregnancy/lactation/deep-winter multipliers flagged for §5.3/§6.4 | Direct mechanical consequence of the two decisions above (linear-in-BW DM ceiling vs. BW⁰·⁷⁵-scaling kcal target); no further open question raised by it |
 
