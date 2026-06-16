@@ -1196,12 +1196,14 @@ lesser of this cap and the actual winter pasture supply (§5.3 step 2), so in a
 hard winter or at high stocking density a dry cow may get well under 30% in
 practice. Oat rations are unaffected for all cattle.
 
-### 5.5 Grazing-area stocking densities (growing season) — [AGREED, carried over]
+### 5.5 Grazing-area stocking densities (growing season) — [AGREED]
 
-| Parameter | Value | Role |
-|---|---|---|
-| `pastureAcresPerSheep` | 0.5 | Acres of permanent pasture per sheep, growing season |
-| `pastureAcresPerCattle` | 1 | Acres of permanent pasture per ox/cow/bull, growing season |
+| Parameter | Value | Source | Role |
+|---|---|---|---|
+| `pastureAcresPerSheep` | **0.5** | Grosseteste c.1240 ("each acre of fallow ought to support yearly two sheep"); corroborated by Kitsikopoulos (1.66 sheep/acre on fallow, 7-month season) and a Hoskins-derived medieval adjustment (~2.4/acre on good downland) — all cluster near 2 sheep/acre = 0.5 acres/sheep on permanent or fallow pasture. | Acres of permanent pasture per sheep, growing season |
+| `pastureAcresPerCattle` | **2** | Campbell, *English Seigniorial Agriculture 1250–1450* (Cambridge UP, 2000), Ch. 4: "each acre could support two sheep; cattle required about two acres each" — i.e. a cow/ox requires 4× the pasture acreage of a sheep, consistent with their ~6× greater bodyweight (250–300 kg vs 40–50 kg) and metabolic scaling (~4× by BW⁰·⁷⁵). **Revises the earlier [CARRIED OVER] value of 1** — the prior value was copied from the legacy code without any source, and produced a 2:1 cattle:sheep ratio where the evidence gives 4:1. | Acres of permanent pasture per ox/cow/bull, growing season |
+
+**R7 note**: the prior `pastureAcresPerCattle = 1` is superseded. It is also updated in `defaults.ts`.
 
 During the growing season, pasture/meadow grazing is treated as **land-area-bounded, not DM/kcal-balance-bounded**: these stocking-density ratios are the interface used to derive `permanentPastureAcres` (§1.2) from herd composition. The existing `storedGrass`/intense-grazing mechanic in `simulation.ts` (overgrazing pressure, hay-cut timing) is an internal simulation detail for *how* a pasture parcel responds to grazing pressure, not part of this I/O contract — it is not revisited here.
 
@@ -1826,4 +1828,5 @@ are **superseded** by the straw/wool rows above (R7).
 | 2026-06-15 | §5.2.1/§5.2.2/§4.9.6 | **Resolved** the §4.9.6-flagged feed-vs-yield bodyweight inconsistency: §5.2.1's cattle feed bodyweights now **unified** with §4.9.5's yield liveweights — cow 250kg (was 400), ox/bull 300kg (was 500); ram/ewe/wether unchanged (55/40/50, out of scope — no equivalent inconsistency flagged for sheep). New Kleiber BMR: cow 4,400 / ox-bull 5,040 kcal/day (was 6,260/7,400) | User direction: "make feed-weight the same as yield weight (not yield)" — the same animal can't have two liveweights |
 | 2026-06-15 | §5.2.2 | `WINTER_ACTIVITY_FACTOR`: cattle winter kcal targets **held at pre-unification absolute values** (cow 15,650 kcal/day / 469,500/mo; ox/bull 18,500 / 555,000/mo) rather than rescaled via Kleiber (which would cut them ~30% to 11,000/12,600). Implied multiple rises from 2.5×BMR to **cow 3.56×BMR, ox/bull 3.67×BMR** (sheep unchanged at 2.5×). An evidence-range re-derivation (upper-bound published ME 0.796 MJ/kg⁰·⁷⁵/day + cold stress → 3.26–3.54×) was offered via AskUserQuestion and explicitly declined by the user ("there is no bloody need to revisit this") | User direction: "historical cattle consumed no less than modern breeds despite being smaller" — read as holding absolute consumption constant, not as a license to re-derive the multiplier from first principles |
 | 2026-06-15 | §5.2.4/§5.2.6 | Knock-on consequence, logged not re-opened: cattle DM ceiling drops ~38–40% (360/450 → 225/270 kg/mo) while the kcal target is unchanged, so cattle now sit at **≈100% of the DM ceiling** (was 60–63%) — the same gut-fill-bound regime as sheep. Ration recipe (oats:hay split) left unchanged; near-zero spare gut capacity for §5.2.3 pregnancy/lactation/deep-winter multipliers flagged for §5.3/§6.4 | Direct mechanical consequence of the two decisions above (linear-in-BW DM ceiling vs. BW⁰·⁷⁵-scaling kcal target); no further open question raised by it |
+| 2026-06-16 | §5.5 | `pastureAcresPerCattle` revised from 1 → **2**; `pastureAcresPerSheep` = 0.5 confirmed. Cattle:sheep ratio now 4:1 (was 2:1). | Campbell, *English Seigniorial Agriculture 1250–1450*, Ch. 4: "each acre could support two sheep; cattle required about two acres each." The prior value of 1 was [CARRIED OVER] without a source; the 2:1 ratio had no evidentiary basis. A 4:1 ratio is also consistent with metabolic-weight scaling (cattle ~6× sheep by mass, ~4× by BW⁰·⁷⁵). Updated in `defaults.ts`. |
 

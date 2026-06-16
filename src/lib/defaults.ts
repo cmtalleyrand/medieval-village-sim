@@ -42,7 +42,7 @@ export const DEFAULTS: SimParams = {
   plannerRiskBufferPct: 5, // Planner-only reserve margin applied to annual needs
   bullsPerCow: 1 / 12, // Bulls required per cow
   pastureAcresPerSheep: 0.5, // Pasture acres per sheep
-  pastureAcresPerCattle: 1, // Pasture acres per ox/cow/bull
+  pastureAcresPerCattle: 2, // Pasture acres per ox/cow/bull (Campbell: ~2 acres/beast, 4× sheep)
   initialFertility: 0.85,
   fertilityFloor: 0.40,
   
